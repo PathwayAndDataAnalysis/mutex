@@ -14,10 +14,7 @@ import org.biopax.paxtools.conversion.HGNC;
 import org.biopax.paxtools.model.level3.ProteinReference;
 import org.biopax.paxtools.model.level3.Xref;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.text.DecimalFormat;
 import java.util.*;
 
@@ -64,7 +61,8 @@ public class MutexAnalysis
 		System.out.println("altered genes = " + map.size());
 
 		SIFLinker linker = new SIFLinker();
-		linker.load(getClass().getResource("network.txt").getFile());
+		linker.load(new InputStreamReader(getClass().getResourceAsStream("network.txt")),
+			new InputStreamReader(getClass().getResourceAsStream("network.txt")));
 
 		Traverse trav = linker.traverse;
 
@@ -119,14 +117,15 @@ public class MutexAnalysis
 		// cBio portal configuration
 
 		System.out.println();
-		
+
 		if (new File(data.filename).exists())
 		{
 			return AlterationPack.readFromFile(data.filename);
 		}
-		else if (new File(getClass().getResource(data.filename).getFile()).exists())
+		else if (getClass().getResourceAsStream(data.filename) != null)
 		{
-			return AlterationPack.readFromFile(getClass().getResource(data.filename).getFile());
+			return AlterationPack.readFromFile(new InputStreamReader(getClass().getResourceAsStream(
+				data.filename)));
 		}
 		
 		CBioPortalAccessor cBioPortalAccessor = new CBioPortalAccessor();
@@ -173,7 +172,7 @@ public class MutexAnalysis
 	{
 		Set<String> set = new HashSet<String>();
 		BufferedReader reader = new BufferedReader(
-			new FileReader(getClass().getResource("symbols.txt").getFile()));
+			new InputStreamReader(getClass().getResourceAsStream("symbols.txt")));
 
 		reader.readLine();
 		for (String line = reader.readLine(); line != null; line = reader.readLine())
@@ -808,6 +807,6 @@ public class MutexAnalysis
 	public static final Dataset colon = new Dataset(
 		"Colon.txt", 5, 0, new int[]{0, 10});
 
-	static final Dataset data = breast;
+	static final Dataset data = glioblastoma;
 }
 
