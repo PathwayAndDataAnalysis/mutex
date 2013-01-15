@@ -4,12 +4,13 @@
 		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>mutex</groupId>
+	<groupId>org.cbio</groupId>
 	<artifactId>mutex</artifactId>
 	<version>1</version>
 
 	<properties>
 		<paxtools.version>4.1.5-SNAPSHOT</paxtools.version>
+		<causality.version>0.1</causality.version>
 	</properties>
 
 	<repositories>
@@ -37,6 +38,11 @@
 			<name>BioPAX Snapshots Repository at Sourceforge</name>
 			<url>http://biopax.sourceforge.net/m2repo/snapshots/</url>
 		</repository>
+        <repository>
+            <id>ozgun.repo</id>
+            <name>Ozgun Repo</name>
+            <url>http://cbio.mskcc.org/~ozgun/m2repo/</url>
+        </repository>
 	</repositories>
 
 	<build>
@@ -78,9 +84,9 @@
 			<version>${paxtools.version}</version>
 		</dependency>
         <dependency>
-            <groupId>org.biopax.paxtools</groupId>
-            <artifactId>paxtools-causality</artifactId>
-            <version>${paxtools.version}</version>
+            <groupId>org.cbio</groupId>
+            <artifactId>causality</artifactId>
+            <version>${causality.version}</version>
         </dependency>
     </dependencies>
 
