@@ -1,9 +1,9 @@
 import org.cbio.causality.analysis.SIFLinker;
 import org.cbio.causality.analysis.Traverse;
-import org.cbio.causality.data.CBioPortalAccessor;
-import org.cbio.causality.data.CancerStudy;
-import org.cbio.causality.data.CaseList;
-import org.cbio.causality.data.GeneticProfile;
+import org.cbio.causality.data.portal.CBioPortalAccessor;
+import org.cbio.causality.data.portal.CancerStudy;
+import org.cbio.causality.data.portal.CaseList;
+import org.cbio.causality.data.portal.GeneticProfile;
 import org.cbio.causality.idmapping.HGNC;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
@@ -20,6 +20,7 @@ import java.util.*;
 
 /**
  * @author Ozgun Babur
+ * @deprecated
  */
 public class MutexAnalysis
 {
@@ -37,7 +38,15 @@ public class MutexAnalysis
 	{
 		// Load network
 
-		Map<String, AlterationPack> map = readAlterations();
+		SIFLinker linker = new SIFLinker();
+		linker.load(getClass().getResourceAsStream("network.txt"),
+			"STATE_CHANGE", "TRANSCRIPTION", "DEGRADATION");
+
+		Traverse trav = linker.traverse;
+
+		// Load alteration data
+
+		Map<String, AlterationPack> map = readAlterations(trav.getSymbols());
 		for (String s : new HashSet<String>(map.keySet()))
 		{
 			AlterationPack pack = map.get(s);
@@ -59,12 +68,6 @@ public class MutexAnalysis
 //		}
 
 		System.out.println("altered genes = " + map.size());
-
-		SIFLinker linker = new SIFLinker();
-		linker.load(new InputStreamReader(getClass().getResourceAsStream("network.txt")),
-			new InputStreamReader(getClass().getResourceAsStream("network.txt")));
-
-		Traverse trav = linker.traverse;
 
 		List<AltBundle> modules = new ArrayList<AltBundle>();
 		Progress p = new Progress(map.size());
@@ -112,7 +115,7 @@ public class MutexAnalysis
 //		System.out.println(getGraph(modules, linker));
 	}
 
-	private Map<String, AlterationPack> readAlterations() throws IOException
+	private Map<String, AlterationPack> readAlterations(Set<String> syms) throws IOException
 	{
 		// cBio portal configuration
 
@@ -144,8 +147,6 @@ public class MutexAnalysis
 		List<CaseList> caseLists = cBioPortalAccessor.getCaseListsForCurrentStudy();
 		cBioPortalAccessor.setCurrentCaseList(caseLists.get(data.caseList));
 
-		Set<String> syms = readSymbols();
-
 		System.out.println("syms.size() = " + syms.size());
 		long time = System.currentTimeMillis();
 
@@ -168,24 +169,6 @@ public class MutexAnalysis
 		return map;
 	}
 
-	private Set<String> readSymbols() throws IOException
-	{
-		Set<String> set = new HashSet<String>();
-		BufferedReader reader = new BufferedReader(
-			new InputStreamReader(getClass().getResourceAsStream("symbols.txt")));
-
-		reader.readLine();
-		for (String line = reader.readLine(); line != null; line = reader.readLine())
-		{
-			String[] token = line.split("\t");
-			set.add(token[0]);
-			set.add(token[1]);
-		}
-
-		reader.close();
-		return set;
-	}
-	
 	private String getSymbol(ProteinReference pr)
 	{
 		for (Xref xref : pr.getXref())
