@@ -5,10 +5,7 @@ import org.cbio.causality.idmapping.Length;
 import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.util.Summary;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author Ozgun Babur
@@ -23,7 +20,7 @@ public class MutCount
 		for (AlterationPack pack : packs)
 		{
 			String[] muts = cacc.getManager().getDataForGene(pack.getId(),
-				cacc.getCurrentGeneticProfiles().get(0), cacc.getCurrentCaseList());
+				cacc.getGeneticProfileContainingName("mutations"), cacc.getCurrentCaseList());
 			mutMap.put(pack.getId(), muts);
 		}
 		return mutMap;
@@ -39,6 +36,34 @@ public class MutCount
 		return total;
 	}
 
+	public static int getTotalMutationCount(Map<String, String[]> mutMap, int sample, Set<String> ignore)
+	{
+		int total = 0;
+		for (String symbol : mutMap.keySet())
+		{
+			if (ignore.contains(symbol)) continue;
+
+			String[] muts = mutMap.get(symbol);
+			total += getMutationCount(muts[sample]);
+
+		}
+		return total;
+	}
+
+	public static int[] getSampleMutCounts(Map<String, String[]> mutMap)
+	{
+		int[] cnts = new int[mutMap.values().iterator().next().length];
+
+		for (int i = 0; i < cnts.length; i++)
+		{
+			for (String symbol : mutMap.keySet())
+			{
+				cnts[i] += getMutationCount(symbol, mutMap, i);
+			}
+		}
+		return cnts;
+	}
+	
 	public static int getMutationCount(String symbol, Map<String, String[]> mutMap, int sample)
 	{
 		return getMutationCount(mutMap.get(symbol)[sample]);
@@ -53,7 +78,7 @@ public class MutCount
 
 	final static String[] NULLS = new String[]{"", "NaN", "NA", "null"};
 
-	private static boolean isNaN(String s)
+	public static boolean isNaN(String s)
 	{
 		if (s == null) return true;
 		s = s.trim();

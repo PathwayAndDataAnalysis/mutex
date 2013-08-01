@@ -4,11 +4,14 @@ import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.model.Change;
 
+import java.util.Arrays;
+import java.util.Collections;
+
 /**
  * A gene alteration data.
  * @author Ozgun Babur
  */
-public class GeneAlt
+public class GeneAlt implements Cloneable
 {
 	/**
 	 * Pack of gene alterations.
@@ -116,5 +119,54 @@ public class GeneAlt
 	public double getAlteredRatio()
 	{
 		return gene.getAlteredRatio(alt);
+	}
+
+	public void removeMinorCopyNumberAlts()
+	{
+		assert alt == Alteration.GENOMIC : "Use this method only with genomic alteration. " +
+			"Remember that this method will alter genomic changes array.";
+
+		int up = 0;
+		int dw = 0;
+		for (Change c : gene.get(Alteration.COPY_NUMBER))
+		{
+			if (c == Change.ACTIVATING) up++;
+			else if (c == Change.INHIBITING) dw++;
+		}
+
+//		if (up == dw)
+//		{
+//			System.out.println("Gene " + gene.getId() + " is equally altered (up: " + up +
+//				", dw: " + dw + "). Choosing down");
+//		}
+
+		Change c = dw < up ? Change.ACTIVATING : Change.INHIBITING;
+
+		for (int i = 0; i < gene.getSize(); i++)
+		{
+			gene.get(Alteration.GENOMIC)[i] = gene.get(Alteration.MUTATION)[i].isAltered() ||
+				gene.get(Alteration.COPY_NUMBER)[i] == c ? c : Change.NO_CHANGE;
+		}
+
+		this.ch = null;
+	}
+
+	public void shuffle()
+	{
+		Boolean[] bool = new Boolean[getBooleanChanges().length];
+		for (int i = 0; i < bool.length; i++)
+		{
+			bool[i] = ch[i];
+		}
+		Collections.shuffle(Arrays.asList(bool));
+		for (int i = 0; i < bool.length; i++)
+		{
+			ch[i] = bool[i];
+		}
+	}
+
+	public void unshuffle()
+	{
+		ch = null;
 	}
 }

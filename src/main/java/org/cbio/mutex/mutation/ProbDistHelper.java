@@ -4,9 +4,7 @@ import org.cbio.causality.idmapping.Length;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author Ozgun Babur
@@ -17,20 +15,28 @@ public class ProbDistHelper
 	Map<String, double[]> randMap = new HashMap<String, double[]>();
 //	Map<String, double[]> drivMap = new HashMap<String, double[]>();
 	Map<String, String[]> mutMap;
+	Set<String>[] lostGenes;
 
-	public ProbDistHelper(List<AlterationPack> packs, Map<String, String[]> mutMap)
+	public ProbDistHelper(List<AlterationPack> packs, Map<String, String[]> mutMap, Set<String>[] lostGenes)
 	{
 		this.mutMap = mutMap;
+		this.lostGenes = lostGenes;
 
 		Map<Integer, Integer> counts = new HashMap<Integer, Integer>();
 
 		for (int i = 0; i < packs.get(0).getSize(); i++)
 		{
-			int cnt = MutCount.getTotalMutationCount(mutMap, i);
+			int cnt = MutCount.getTotalMutationCount(mutMap, i, lostGenes[i]);
 			counts.put(i, cnt);
 		}
 
-		int totalSeqLength = Length.getTotalLength(mutMap.keySet());
+		int[] totalSeqLength = new int[packs.get(0).getSize()];
+		for (int i = 0; i < totalSeqLength.length; i++)
+		{
+			Set<String> set = new HashSet<String>(mutMap.keySet());
+			set.removeAll(lostGenes[i]);
+			totalSeqLength[i] = Length.getTotalLength(set);
+		}
 
 		for (AlterationPack pack : packs)
 		{
@@ -39,7 +45,7 @@ public class ProbDistHelper
 
 			for (int i = 0; i < pv.length; i++)
 			{
-				pv[i] = calcProbOfAtLeastOneHit(Length.of(pack.getId()), totalSeqLength, counts.get(i));
+				pv[i] = calcProbOfAtLeastOneHit(Length.of(pack.getId()), totalSeqLength[i], counts.get(i));
 			}
 
 			double[] randpv = new double[pv.length];
@@ -82,6 +88,8 @@ public class ProbDistHelper
 		if (!probMap.containsKey(symbol))
 			throw new IllegalArgumentException("Symbol not known: " + symbol);
 
+		if (lostGenes[pos].contains(symbol)) return 0;
+
 		double[] pv = probMap.get(symbol);
 
 		if (pv.length <= pos) throw new IllegalArgumentException("Index too large: " + pos);
@@ -93,6 +101,8 @@ public class ProbDistHelper
 	{
 		if (!randMap.containsKey(symbol))
 			throw new IllegalArgumentException("Symbol not known: " + symbol);
+
+		if (lostGenes[pos].contains(symbol)) return 0;
 
 		double[] pv = randMap.get(symbol);
 

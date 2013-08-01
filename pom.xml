@@ -9,7 +9,7 @@
 	<version>1</version>
 
 	<properties>
-		<paxtools.version>4.1.5-SNAPSHOT</paxtools.version>
+		<paxtools.version>4.2.0-SNAPSHOT</paxtools.version>
 		<causality.version>[0,]</causality.version>
 	</properties>
 

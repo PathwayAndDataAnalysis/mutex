@@ -2,6 +2,7 @@ package org.cbio.mutex;
 
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.Change;
+import org.cbio.causality.util.ChiSquare;
 import org.cbio.causality.util.Overlap;
 import org.cbio.causality.util.Summary;
 
@@ -82,8 +83,9 @@ public class Group
 
 		if (members.size() == 2)
 		{
-			double p = Overlap.calcAlterationMutexPval(
-				members.get(0).getChanges(), members.get(1).getChanges());
+			double p = Overlap.calcMutexPval(
+				members.get(0).getBooleanChanges(),
+				members.get(1).getBooleanChanges());
 
 			pvals.put(members.get(0).getId(), p);
 			pvals.put(members.get(1).getId(), p);
@@ -92,21 +94,59 @@ public class Group
 		{
 			for (int i = 0; i < members.size(); i++)
 			{
-				Change[] others = getMergedAlterations(i);
+				boolean[] others = getMergedAlterations(i);
 
-				pvals.put(members.get(i).getId(), Overlap.calcAlterationMutexPval(
-					members.get(i).getChanges(), others));
+				pvals.put(members.get(i).getId(), Overlap.calcMutexPval(
+					members.get(i).getBooleanChanges(), others));
 			}
 		}
 		adjustToMultipleHypothesisTesting(pvals);
 		return pvals;
 	}
 
+	public double calcOverallPVal()
+	{
+		if (size() == 1) return 1;
+
+		double[] pvals = calcPvalArray();
+
+		double pval = 1;
+
+		for (double v : pvals)
+		{
+			pval *= (1 - v);
+		}
+
+		pval = 1 - pval;
+
+		return pval;
+	}
+
+	public double calcOverallPVal_old()
+	{
+		if (size() == 1) return 1;
+
+		double[] pvals = calcIndependentPVals();
+
+		if (pvals.length == 1) return pvals[0];
+
+		double chisq = 0;
+
+		for (double pval : pvals)
+		{
+			chisq += Math.log(pval);
+		}
+
+		chisq *= -2;
+
+		return ChiSquare.pValue(chisq, 2 * pvals.length);
+	}
+
 	/**
 	 * Calculates n-1 independent p-values for mutexness.
 	 * @return p-values
 	 */
-	public double[] calcIndependentPVals()
+	private double[] calcIndependentPVals()
 	{
 		boolean[][] alts = new boolean[members.size()][];
 		for (int i = 0; i < alts.length; i++)
@@ -141,39 +181,15 @@ public class Group
 			boolean[] single = alts[i];
 			boolean[] merge = getMergedAlterations(alts, useGene);
 
-			pvals[i] = calcIndependentPval(alts, i, useGene, useSample);
+			pvals[i] = Overlap.calcMutexPval(single, merge, useSample);
 
 			for (int j = 0; j < useSample.length; j++)
 			{
-				if (single[j] && !merge[j]) useSample[j] = false;
+				if (single[j]) useSample[j] = false;
 			}
 		}
 
 		return pvals;
-	}
-
-	/**
-	 * Calculates mutex p-value of a gene with the merge of a subset of other genes, for a subset of
-	 * samples.
-	 * @param alts gene alterations
-	 * @param singleIndex index of single gene of calculation
-	 * @param others indicates which genes go into the calculation as the merges set
-	 * @param useSamples indicates which samples to consider in the calculation
-	 * @return p-value
-	 */
-	private double calcIndependentPval(boolean[][] alts, int singleIndex, boolean[] others,
-		boolean[] useSamples)
-	{
-		assert !others[singleIndex];
-
-		boolean[] merge = new boolean[alts[0].length];
-
-		for (int i = 0; i < alts.length; i++)
-		{
-			if (others[i]) ORWith(merge, alts[i]);
-		}
-
-		return Overlap.calcMutexPval(alts[singleIndex], merge, useSamples);
 	}
 
 	/**
@@ -227,9 +243,7 @@ public class Group
 	public double calcFuturePVal(GeneAlt gene, int candSize)
 	{
 		addGene(gene, candSize, false);
-//		double pval = calcPvalGeomMean();
-		double pval = calcWorstPval();
-//		double pval = FishersCombinedProbability.pValue(calcPvalArray());
+		double pval = calcOverallPVal();
 		removeGene(gene);
 		return pval;
 	}
@@ -384,6 +398,9 @@ public class Group
 		// not ok if already a member
 		if (getGeneNames().contains(gene.getId())) return false;
 
+		// not ok if black-listed
+		if (black.contains(gene)) return false;
+
 		boolean[] x = getCoverage(gene);
 		boolean[] merge = unique.get(MERGE);
 
@@ -422,13 +439,13 @@ public class Group
 	 * @param skipIndex index of the gene to skip. Use negative value if no skipping is required
 	 * @return merged changes
 	 */
-	public Change[] getMergedAlterations(int skipIndex)
+	public boolean[] getMergedAlterations(int skipIndex)
 	{
-		Change[] others = new Change[members.get(0).size()];
+		boolean[] others = new boolean[members.get(0).size()];
 
 		for (int k = 0; k < others.length; k++)
 		{
-			others[k] = Change.NO_CHANGE;
+			others[k] = false;
 
 			for (int j = 0; j < members.size(); j++)
 			{
@@ -436,7 +453,7 @@ public class Group
 
 				if (members.get(j).getChanges()[k].isAltered())
 				{
-					others[k] = Change.ACTIVATING;
+					others[k] = true;
 					break;
 				}
 			}

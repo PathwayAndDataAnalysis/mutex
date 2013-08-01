@@ -22,33 +22,31 @@ public class PortalReader
 	{
 		// cBio portal configuration
 
-		System.out.println();
-
 		if (new File(data.filename).exists())
 		{
 			return AlterationPack.readFromFile(data.filename);
 		}
-		else if (getClass().getResourceAsStream(data.filename) != null)
-		{
-			return AlterationPack.readFromFile(new InputStreamReader(getClass().getResourceAsStream(
-				data.filename)));
-		}
+//		else if (getClass().getResourceAsStream(data.filename) != null)
+//		{
+//			return AlterationPack.readFromFile(new InputStreamReader(getClass().getResourceAsStream(
+//				data.filename)));
+//		}
 
 		CBioPortalAccessor cBioPortalAccessor = new CBioPortalAccessor();
-		CancerStudy cancerStudy = cBioPortalAccessor.getCancerStudies().get(data.study); // GBM
+		CancerStudy cancerStudy = findCancerStudy(cBioPortalAccessor.getCancerStudies(), data.study); // GBM
 		cBioPortalAccessor.setCurrentCancerStudy(cancerStudy);
 
 		List<GeneticProfile> geneticProfilesForCurrentStudy =
 			cBioPortalAccessor.getGeneticProfilesForCurrentStudy();
 		List<GeneticProfile> gp = new ArrayList<GeneticProfile>();
-		for (int prof : data.profile)
+		for (String prof : data.profile)
 		{
-			gp.add(geneticProfilesForCurrentStudy.get(prof));
+			gp.add(findProfile(geneticProfilesForCurrentStudy, prof));
 		}
 		cBioPortalAccessor.setCurrentGeneticProfiles(gp);
 
 		List<CaseList> caseLists = cBioPortalAccessor.getCaseListsForCurrentStudy();
-		cBioPortalAccessor.setCurrentCaseList(caseLists.get(data.caseList));
+		cBioPortalAccessor.setCurrentCaseList(findCaseList(caseLists, data.caseList));
 
 		System.out.println("syms.size() = " + syms.size());
 		long time = System.currentTimeMillis();
@@ -58,7 +56,7 @@ public class PortalReader
 		for (String sym : syms)
 		{
 			AlterationPack alt = cBioPortalAccessor.getAlterations(sym);
-			if (alt.isAltered(Alteration.GENOMIC))
+			if (alt != null && alt.isAltered(Alteration.GENOMIC))
 			{
 				map.put(sym, alt);
 			}
@@ -70,5 +68,32 @@ public class PortalReader
 		AlterationPack.writeToFile(map, data.filename);
 
 		return map;
+	}
+
+	private CancerStudy findCancerStudy(List<CancerStudy> list, String id)
+	{
+		for (CancerStudy study : list)
+		{
+			if (study.getStudyId().equals(id)) return study;
+		}
+		return null;
+	}
+
+	private CaseList findCaseList(List<CaseList> list, String id)
+	{
+		for (CaseList cl : list)
+		{
+			if (cl.getId().equals(id)) return cl;
+		}
+		return null;
+	}
+
+	private GeneticProfile findProfile(List<GeneticProfile> list, String id)
+	{
+		for (GeneticProfile profile : list)
+		{
+			if (profile.getId().equals(id)) return profile;
+		}
+		return null;
 	}
 }

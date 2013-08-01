@@ -14,7 +14,8 @@ public class PortalDataset
 	 * @param caseList index of case-list in portal
 	 * @param profile indices of the desired genomic profiles
 	 */
-	public PortalDataset(String name, String filename, int study, int caseList, int[] profile)
+	public PortalDataset(String name, String filename,
+		String study, String caseList, String... profile)
 	{
 		this.name = name;
 		this.filename = filename;
@@ -25,16 +26,19 @@ public class PortalDataset
 
 	String name;
 	String filename;
-	int study;
-	int caseList;
-	int[] profile;
+
+	String study;
+	String caseList;
+	String[] profile;
 
 	public static final PortalDataset glioblastoma = new PortalDataset(
-		"glioblastoma", "Glioblastoma.txt", 7, 0, new int[]{1, 3});
+		"glioblastoma", "Glioblastoma.txt", "gbm_tcga_pub", "gbm_tcga_pub_cnaseq", "gbm_tcga_pub_mutations", "gbm_tcga_pub_cna_rae");
 	public static final PortalDataset ovarian = new PortalDataset(
-		"ovarian", "Ovarian.txt", 16, 0, new int[]{0, 12});
+		"ovarian", "Ovarian.txt", "ov_tcga_pub", "ov_tcga_pub_cna_seq", "ov_tcga_pub_mutations", "ov_tcga_pub_gistic");
 	public static final PortalDataset breast = new PortalDataset(
-		"breast", "Breast.txt", 3, 1, new int[]{0, 8});
+		"breast", "Breast.txt", "brca_tcga_pub", "brca_tcga_pub_cnaseq", "brca_tcga_pub_mutations", "brca_tcga_pub_gistic");
 	public static final PortalDataset colon = new PortalDataset(
-		"colon", "Colon.txt", 5, 0, new int[]{0, 10});
+		"colon", "Colon.txt", "coadread_tcga_pub", "coadread_tcga_pub_cna_seq", "coadread_tcga_pub_mutations", "coadread_tcga_pub_gistic");
+	public static final PortalDataset endometrial = new PortalDataset(
+		"colon", "Colon.txt", "ucec_tcga_pub", "ucec_tcga_pub_cnaseq", "ucec_tcga_pub_mutations", "ucec_tcga_pub_gistic");
 }

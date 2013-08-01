@@ -5,28 +5,29 @@ import org.cbio.causality.model.AlterationPack;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
- * This is the executor class of the search.
+ * This is the main executor class of the mutex search.
  * @author Ozgun Babur
  */
 public class Main
 {
+	public static final PortalDataset data = PortalDataset.colon;
+	public static final double MIN_ALTERATION_THR = 0.03;
+	public static final double PVAL_THR = 0.05;
+	public static final double FDR_THR = 0.05;
+	public static final int MAX_GROUP_SIZE = 6;
+	public static final int RANDOMIZATION_TRIALS = 10;
+
 	public static void main(String[] args) throws IOException
 	{
-		// decide parameters of current analysis
-		PortalDataset data = PortalDataset.colon;
-		String outFile = "/home/ozgun/Desktop/mutex/greedy/" + data.name + ".cus";
-		double minAlt = 0.03;
-		double pvalThr = 0.05;
-
 		// load the network
 
 		SIFLinker linker = new SIFLinker();
-		linker.load(Main.class.getResourceAsStream("network.txt"),
-			"STATE_CHANGE", "TRANSCRIPTION", "DEGRADATION");
+		linker.load(Main.class.getResourceAsStream("PC.txt"),
+			"controls-state-change", "controls-expression", "controls-degradation");
+		linker.load(Main.class.getResourceAsStream("SPIKE.txt"), "is-upstream-of");
 
 		// load the alteration data
 		PortalReader reader = new PortalReader();
@@ -34,8 +35,12 @@ public class Main
 			data, linker.traverse.getSymbols());
 
 		// greedy search for the upstream of each gene
-		MutexSearcher searcher = new MutexSearcher(linker.traverse, genesMap, minAlt);
-		List<Group> groups = searcher.search(pvalThr, minAlt, 5);
+
+		MutexGreedySearcher searcher = new MutexGreedySearcher(
+			linker.traverse, genesMap, MIN_ALTERATION_THR);
+
+		List<Group> groups = searcher.search(
+			PVAL_THR, FDR_THR, MAX_GROUP_SIZE, RANDOMIZATION_TRIALS);
 
 		// clean subsets in the result
 		Group.removeSubsets(groups);
@@ -43,12 +48,28 @@ public class Main
 		// sort the list favoring high-coverage
 		Group.sortToCoverage(groups);
 
-		GraphWriter.write(groups, linker, new FileOutputStream(outFile), data.name);
+		// Write the output graph to visualize in ChiBE
+		GraphWriter.write(groups, linker,
+			new FileOutputStream("/home/ozgun/Desktop/mutex/greedy/" + data.name + ".cus"),
+			data.name);
 
-		// Print oncoprints for the groups
+		// Print textual results
 		for (Group group : groups)
 		{
-			System.out.println(group.getGeneNames() + "\t" + group.calcCoverage());
+			List<String> dwstr = new ArrayList<String>(linker.traverse.getLinkedCommonDownstream(
+				new HashSet<String>(group.getGeneNames())));
+
+			Collections.sort(dwstr);
+
+			System.out.print(group.getGeneNames() + "\tcover: " + group.calcCoverage() +
+				"\ttargets:");
+
+			for (String s : dwstr)
+			{
+				System.out.print(" " + s);
+			}
+			System.out.println();
+
 			System.out.println(group.getPrint());
 			System.out.println();
 		}

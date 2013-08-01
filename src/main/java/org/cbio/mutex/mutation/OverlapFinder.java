@@ -3,6 +3,8 @@ package org.cbio.mutex.mutation;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
 
+import java.util.Set;
+
 /**
  * @author Ozgun Babur
  */
@@ -32,28 +34,20 @@ public class OverlapFinder
 		return dif;
 	}
 
-	public static double getAltDif(AlterationPack pack, ProbDistHelper pdh)
+	public static double getAltDif(AlterationPack pack, ProbDistHelper pdh, Set<String>[] lost)
 	{
 
-		int alteredCount = pack.getAlteredCount(Alteration.MUTATION);
-
+		int alteredCount = 0;
 		double dif = 0;
+
 		for (int i = 0; i < pack.getSize(); i++)
 		{
+			if (lost[i].contains(pack.getId())) continue;
+
 			dif += pdh.getRandProb(pack.getId(), i);
+			alteredCount += pack.getChange(Alteration.MUTATION, i).isAltered() ? 1 : 0;
 		}
 
 		return alteredCount - dif;
-	}
-
-	public static double getAltAbsDif(AlterationPack pack, ProbDistHelper pdh)
-	{
-		double dif = 0;
-		for (int i = 0; i < pack.getSize(); i++)
-		{
-			dif += Math.abs(pdh.getRandProb(pack.getId(), i) -
-				(pack.getChange(Alteration.MUTATION, i).isAltered() ? 1 : 0));
-		}
-		return dif;
 	}
 }
