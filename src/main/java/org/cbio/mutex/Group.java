@@ -16,11 +16,6 @@ import java.util.*;
 public class Group
 {
 	/**
-	 * Other candidates for this position.
-	 */
-	Map<String, Integer> alternatives;
-
-	/**
 	 * Genes in the group.
 	 */
 	List<GeneAlt> members;
@@ -33,7 +28,7 @@ public class Group
 	/**
 	 * These are the genes that we consider for expanding in the next cycle.
 	 */
-	Set<GeneAlt> candidates;
+	Map<String, Set<GeneAlt>> candidateMap;
 
 	/**
 	 * Boolean arrays showing unique coverage of each  member.
@@ -57,7 +52,7 @@ public class Group
 	public Group(GeneAlt seed)
 	{
 		this();
-		addGene(seed, 1, false);
+		addGene(seed, new HashSet<GeneAlt>(), false);
 		initUniqueCoverageMap();
 	}
 
@@ -67,9 +62,8 @@ public class Group
 	public Group()
 	{
 		members = new ArrayList<GeneAlt>();
-		alternatives = new HashMap<String, Integer>();
 		black = new HashSet<GeneAlt>();
-		candidates = new HashSet<GeneAlt>();
+		candidateMap = new HashMap<String, Set<GeneAlt>>();
 		unique = new HashMap<String, boolean[]>();
 	}
 
@@ -100,7 +94,7 @@ public class Group
 					members.get(i).getBooleanChanges(), others));
 			}
 		}
-		adjustToMultipleHypothesisTesting(pvals);
+//		adjustToMultipleHypothesisTesting(pvals);
 		return pvals;
 	}
 
@@ -119,77 +113,7 @@ public class Group
 
 		pval = 1 - pval;
 
-		return pval;
-	}
-
-	public double calcOverallPVal_old()
-	{
-		if (size() == 1) return 1;
-
-		double[] pvals = calcIndependentPVals();
-
-		if (pvals.length == 1) return pvals[0];
-
-		double chisq = 0;
-
-		for (double pval : pvals)
-		{
-			chisq += Math.log(pval);
-		}
-
-		chisq *= -2;
-
-		return ChiSquare.pValue(chisq, 2 * pvals.length);
-	}
-
-	/**
-	 * Calculates n-1 independent p-values for mutexness.
-	 * @return p-values
-	 */
-	private double[] calcIndependentPVals()
-	{
-		boolean[][] alts = new boolean[members.size()][];
-		for (int i = 0; i < alts.length; i++)
-		{
-			alts[i] = members.get(i).getBooleanChanges();
-		}
-		return calcIndependentPVals(alts);
-	}
-
-	/**
-	 * Calculates n-1 independent p-values for mutexness.
-	 * @param alts gene alterations
-	 * @return p-values
-	 */
-	public double[] calcIndependentPVals(boolean[][] alts)
-	{
-		double[] pvals = new double[alts.length - 1];
-
-		// prepare usage arrays
-
-		boolean[] useGene = new boolean[alts.length];
-		boolean[] useSample = new boolean[alts[0].length];
-
-		for (int i = 0; i < useGene.length; i++) useGene[i] = true;
-		for (int i = 0; i < useSample.length; i++) useSample[i] = true;
-
-
-		for (int i = 0; i < pvals.length; i++)
-		{
-			useGene[i] = false;
-
-			boolean[] single = alts[i];
-			boolean[] merge = getMergedAlterations(alts, useGene);
-
-			pvals[i] = Overlap.calcMutexPval(single, merge, useSample);
-
-			for (int j = 0; j < useSample.length; j++)
-			{
-				if (single[j]) useSample[j] = false;
-			}
-		}
-
-		return pvals;
+		return adjustToMultipleHypothesisTesting(pval);
 	}
 
 	/**
@@ -240,11 +164,11 @@ public class Group
 	 * @param gene gene alteration to consider
 	 * @return geometric mean of the new p-values
 	 */
-	public double calcFuturePVal(GeneAlt gene, int candSize)
+	public double calcFuturePVal(GeneAlt gene, Set<GeneAlt> cands)
 	{
-		addGene(gene, candSize, false);
+		List<Set<GeneAlt>> sets = addGene(gene, cands, false);
 		double pval = calcOverallPVal();
-		removeGene(gene);
+		removeGene(gene, sets);
 		return pval;
 	}
 
@@ -254,39 +178,42 @@ public class Group
 	 * @param gene gene alteration to add
 	 * @param permanent whether the addition is final
 	 */
-	public void addGene(GeneAlt gene, int candSize, boolean permanent)
+	public List<Set<GeneAlt>> addGene(GeneAlt gene, Set<GeneAlt> cands, boolean permanent)
 	{
 		members.add(gene);
-		alternatives.put(gene.getId(), candSize);
+		candidateMap.put(gene.getId(), cands);
 
-		if (permanent)
-		{
-			removeCandidate(gene.getId());
-			updateUniqueCoverageMap(gene);
-		}
-	}
+		if (permanent) updateUniqueCoverageMap(gene);
 
-	/**
-	 * Removes candidates with the given name.
-	 * @param gene the gene name to remove
-	 */
-	public void removeCandidate(String gene)
-	{
-		for (GeneAlt cand : new HashSet<GeneAlt>(candidates))
+		List<Set<GeneAlt>> candSets = new ArrayList<Set<GeneAlt>>();
+		for (Set<GeneAlt> set : candidateMap.values())
 		{
-			if (cand.getId().equals(gene)) candidates.remove(cand);
+			if (set.contains(gene))
+			{
+				set.remove(gene);
+				candSets.add(set);
+			}
 		}
+		return candSets;
 	}
 
 	/**
 	 * Removes a temporary gene from the group.
 	 * @param gene gene alteration to remove
 	 */
-	public void removeGene(GeneAlt gene)
+	public void removeGene(GeneAlt gene, List<Set<GeneAlt>> candsToAddTo)
 	{
 		assert unique == null || !unique.containsKey(gene.getId());
 		members.remove(gene);
-		alternatives.remove(gene.getId());
+		candidateMap.remove(gene.getId());
+
+		if (candsToAddTo != null)
+		{
+			for (Set<GeneAlt> cands : candsToAddTo)
+			{
+				cands.add(gene);
+			}
+		}
 	}
 
 	/**
@@ -499,13 +426,38 @@ public class Group
 	 */
 	private void adjustToMultipleHypothesisTesting(Map<String, Double> pvals)
 	{
-		for (String gene : alternatives.keySet())
+		for (String gene : candidateMap.keySet())
 		{
-			assert alternatives.containsKey(gene);
+			assert candidateMap.containsKey(gene);
 
-			int candidateSize = alternatives.get(gene);
+			int candidateSize = candidateMap.get(gene).size() + 1;
 			pvals.put(gene, 1 - pow(1 - pvals.get(gene), candidateSize));
 		}
+	}
+
+	/**
+	 * Adjusts the p-values to the multiple hypothesis testing performed.
+	 * @param pval overall p-value
+	 */
+	private double adjustToMultipleHypothesisTesting(double pval)
+	{
+		int candSize = 0;
+		for (Set<GeneAlt> set : candidateMap.values())
+		{
+			for (GeneAlt member : members)
+			{
+				if (set.contains(member))
+				{
+					System.out.println();
+				}
+				assert !set.contains(member) : "seed: " + members.get(0);
+			}
+			candSize += set.size();
+		}
+
+		candSize++;
+
+		return 1 - pow(1 - pval, candSize);
 	}
 
 	/**
@@ -535,9 +487,9 @@ public class Group
 		// Nullify the unique coverage map. This guarantees to get an error if we try to re-expand.
 		unique = null;
 
-		while(calcWorstPval() > pvalThr)
+		while(calcOverallPVal() > pvalThr)
 		{
-			removeGene(members.get(members.size() - 1));
+			removeGene(members.get(members.size() - 1), null);
 
 			if (size() == 1) return;
 		}
@@ -640,8 +592,7 @@ public class Group
 	{
 		Group g = new Group();
 		g.members.addAll(members);
-		g.candidates.addAll(candidates);
-		g.alternatives.putAll(alternatives);
+		g.candidateMap.putAll(candidateMap);
 		g.black.addAll(black);
 		g.unique.putAll(unique);
 		return g;
@@ -676,7 +627,7 @@ public class Group
 	public String getPrint()
 	{
 		List<Integer> order = getPrintOrdering();
-		double[] p = calcPvalArray();
+		Map<String, Double> p = calcPVals();
 		StringBuilder s = new StringBuilder();
 		for (GeneAlt gene : members)
 		{
@@ -684,7 +635,7 @@ public class Group
 			s.append(gene.gene.getPrint(gene.alt, order)).
 				append((gene.getId().length() < 4) ? "  \t" : "\t").
 				append((gene.alt == Alteration.ACTIVATING) ? "+" : "-").append("\tp-val: ").
-				append(fmt.format(p[members.indexOf(gene)]));
+				append(fmt.format(p.get(gene.getId())));
 		}
 		return s.toString();
 	}

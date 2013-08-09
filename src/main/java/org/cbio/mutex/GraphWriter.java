@@ -31,8 +31,8 @@ public class GraphWriter
 	 * @param linker network helper
 	 * @param os stream to write
 	 */
-	public static void write(List<Group> groups, SIFLinker linker, OutputStream os,
-		String graphName) throws IOException
+	public static void write(List<Group> groups, double coocThr, SIFLinker linker, OutputStream os,
+		String graphName, boolean groupCoocCliques) throws IOException
 	{
 		String s = "type:graph\ttext:" + graphName;
 		Set<String> nodes = new HashSet<String>();
@@ -106,35 +106,40 @@ public class GraphWriter
 			set.addAll(group.members);
 		}
 
-		List<Set<GeneAlt>> cliques = determineCliques(set, 0.001);
-		Map<Set<GeneAlt>, String> cli2id = new HashMap<Set<GeneAlt>, String>();
+		List<Set<GeneAlt>> cliques = null;
 
-		int i = 0;
-		String idText = "cocNode";
-		for (Set<GeneAlt> cli : cliques)
+		if (groupCoocCliques)
 		{
-			String id = idText + i++;
-			s += "\ntype:node\tid:" + id + "\ttext:";
+			cliques = determineCliques(set, coocThr);
+			Map<Set<GeneAlt>, String> cli2id = new HashMap<Set<GeneAlt>, String>();
 
-			s += "\tbgcolor:" + "255 255 255" + "\ttooltip:";
-			cli2id.put(cli, id);
-		}
-
-		for (Set<GeneAlt> clique : cliques)
-		{
-			double pv = calcAveragePVal(clique);
-
-			for (GeneAlt gene : clique)
+			int i = 0;
+			String idText = "cocNode";
+			for (Set<GeneAlt> cli : cliques)
 			{
-				String cliID = cli2id.get(clique);
-				s += "\ntype:edge\tid:" + gene.getId() + " co-occur " + cliID;
-				s += "\tsource:" + gene.getId() + "\ttarget:" + cliID;
+				String id = idText + i++;
+				s += "\ntype:node\tid:" + id + "\ttext:";
 
-				int v = (int) Math.max(0, 255 - (-Math.log(pv) * 10));
-				String color = v + " " + v + " " + v;
-				s += "\tlinecolor:" + color + "\tstyle:Dashed";
+				s += "\tbgcolor:" + "255 255 255" + "\ttooltip:";
+				cli2id.put(cli, id);
+			}
 
-				s += "\tarrow:None";
+			for (Set<GeneAlt> clique : cliques)
+			{
+				for (GeneAlt gene : clique)
+				{
+					double pv = calcAveragePVal(clique, gene);
+
+					String cliID = cli2id.get(clique);
+					s += "\ntype:edge\tid:" + gene.getId() + " co-occur " + cliID;
+					s += "\tsource:" + gene.getId() + "\ttarget:" + cliID;
+
+					int v = (int) Math.max(0, 255 - (-Math.log(pv) * 10));
+					String color = v + " " + v + " " + v;
+					s += "\tlinecolor:" + color + "\tstyle:Dashed";
+
+					s += "\tarrow:None";
+				}
 			}
 		}
 
@@ -144,12 +149,12 @@ public class GraphWriter
 			{
 				if (gene1.getId().compareTo(gene2.getId()) > 0)
 				{
-					if (isPartOfAClique(gene1, gene2, cliques)) continue;
+					if (groupCoocCliques && isPartOfAClique(gene1, gene2, cliques)) continue;
 
 					double pv = Overlap.calcAlterationCoocPval(
 						gene1.getChanges(), gene2.getChanges());
 
-					if (pv < 0.01)
+					if (pv < coocThr)
 					{
 						s += "\ntype:edge\tid:" + gene1.getId() + " co-occur " + gene2.getId();
 						s += "\tsource:" + gene1.getId() + "\ttarget:" + gene2.getId();
@@ -276,6 +281,22 @@ public class GraphWriter
 					pv[i++] = Overlap.calcAlterationCoocPval(g1.getChanges(), g2.getChanges());
 				}
 			}
+		}
+		return Summary.geometricMean(pv);
+	}
+
+	private static double calcAveragePVal(Set<GeneAlt> set, GeneAlt gene)
+	{
+		assert set.contains(gene);
+
+		double[] pv = new double[set.size() - 1];
+
+		int i = 0;
+		for (GeneAlt g1 : set)
+		{
+			if (g1.equals(gene)) continue;
+
+			pv[i++] = Overlap.calcAlterationCoocPval(g1.getChanges(), gene.getChanges());
 		}
 		return Summary.geometricMean(pv);
 	}

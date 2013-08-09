@@ -169,4 +169,10 @@ public class GeneAlt implements Cloneable
 	{
 		ch = null;
 	}
+
+	@Override
+	public String toString()
+	{
+		return getId();
+	}
 }

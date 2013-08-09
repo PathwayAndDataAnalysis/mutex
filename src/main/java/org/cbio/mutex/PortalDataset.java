@@ -40,5 +40,5 @@ public class PortalDataset
 	public static final PortalDataset colon = new PortalDataset(
 		"colon", "Colon.txt", "coadread_tcga_pub", "coadread_tcga_pub_cna_seq", "coadread_tcga_pub_mutations", "coadread_tcga_pub_gistic");
 	public static final PortalDataset endometrial = new PortalDataset(
-		"colon", "Colon.txt", "ucec_tcga_pub", "ucec_tcga_pub_cnaseq", "ucec_tcga_pub_mutations", "ucec_tcga_pub_gistic");
+		"endometrial", "Endometrial.txt", "ucec_tcga_pub", "ucec_tcga_pub_cnaseq", "ucec_tcga_pub_mutations", "ucec_tcga_pub_gistic");
 }

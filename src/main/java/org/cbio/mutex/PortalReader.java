@@ -24,13 +24,14 @@ public class PortalReader
 
 		if (new File(data.filename).exists())
 		{
-			return AlterationPack.readFromFile(data.filename);
+			return AlterationPack.readFromFile(data.filename,
+				Alteration.MUTATION, Alteration.COPY_NUMBER);
 		}
-//		else if (getClass().getResourceAsStream(data.filename) != null)
-//		{
-//			return AlterationPack.readFromFile(new InputStreamReader(getClass().getResourceAsStream(
-//				data.filename)));
-//		}
+		else if (getClass().getResourceAsStream(data.filename) != null)
+		{
+			return AlterationPack.readFromFile(new InputStreamReader(getClass().getResourceAsStream(
+				data.filename)), Alteration.MUTATION, Alteration.COPY_NUMBER);
+		}
 
 		CBioPortalAccessor cBioPortalAccessor = new CBioPortalAccessor();
 		CancerStudy cancerStudy = findCancerStudy(cBioPortalAccessor.getCancerStudies(), data.study); // GBM

@@ -72,27 +72,42 @@ public class MutexGreedySearcher
 	/**
 	 * Performs a greedy search for each altered gene, assuming it is the common downstream. At each
 	 * step the qualifying upstream of members are considered for expansion.
-	 * @param pvalThr p-value threshold for member significance
 	 * @return significant mutex groups
 	 */
-	public List<Group> search(double pvalThr, double fdrThr, int maxGroupSize, int randMult)
+	public List<Group> search(double fdrThr, int maxGroupSize, int randMult)
 	{
 		List<Group> groups = new ArrayList<Group>();
 
-		Map<String, Double> seedScores = getGeneScores(genes.keySet(), pvalThr, maxGroupSize);
+		Map<String, Double> seedScores = getGeneScores(genes.keySet(), maxGroupSize);
 
 		List<Double> randList = new ArrayList<Double>();
 		for (int i = 0; i < randMult; i++)
 		{
 			shuffleAlterations();
-			Map<String, Double> randScores = getGeneScores(genes.keySet(), pvalThr, maxGroupSize);
+			Map<String, Double> randScores = getGeneScores(genes.keySet(), maxGroupSize);
 			randList.addAll(randScores.values());
 		}
 		unshuffleAlterations();
 
+		// Print distribution -------------------
+		List<Double> scoresList = new ArrayList<Double>();
+		for (String s : seedScores.keySet()) scoresList.add(seedScores.get(s));
+		printPvalDistr(scoresList, randList, randMult, 0.05);
+		// end of print -------------------------
+
 		List<String> seeds = FDR.select(seedScores, fdrThr, randList, randMult);
 
 		System.out.println("selected seed size = " + seeds.size());
+
+		// estimate the pval threshold
+
+		double pvalThr = 0;
+		for (String seed : seeds)
+		{
+			if (seedScores.get(seed) > pvalThr) pvalThr = seedScores.get(seed);
+		}
+
+		System.out.println("pvalThr = " + pvalThr);
 
 		for (String seed : seeds)
 		{
@@ -100,18 +115,20 @@ public class MutexGreedySearcher
 
 			Group group = new Group(gene);
 
+			Set<GeneAlt> candidates;
 			do
 			{
-				determineCandidates(group);
+				candidates = determineCandidates(group);
 			}
-			while(expandGroup(group) && group.size() < maxGroupSize);
+			while(expandGroup(group, candidates) && group.size() < maxGroupSize);
 
-			if (group.size() > 1)
-			{
-				group.shrinkToSignificantMembers(pvalThr);
-			}
+			assert group.size() > 1;
 
-			if (group.size() > 1) groups.add(group);
+			group.shrinkToSignificantMembers(pvalThr);
+
+			assert group.size() > 1;
+
+			groups.add(group);
 		}
 
 		return groups;
@@ -133,8 +150,7 @@ public class MutexGreedySearcher
 		}
 	}
 
-	private Map<String, Double> getGeneScores(Set<String> names, double pvalThr,
-		double maxGroupSize)
+	private Map<String, Double> getGeneScores(Set<String> names, double maxGroupSize)
 	{
 		Map<String, Double> map = new HashMap<String, Double>();
 
@@ -149,23 +165,10 @@ public class MutexGreedySearcher
 			double bestScore = 1;
 			boolean expanded;
 
-//			do
-//			{
-//				determineCandidates(group);
-//			}
-//			while(expandGroup(group) && group.size() < maxGroupSize);
-//
-//			if (group.size() > 1)
-//			{
-//				group.shrinkToSignificantMembers(pvalThr);
-//			}
-//
-//			map.put(seed, group.calcOverallPVal());
-
 			do
 			{
-				determineCandidates(group);
-				expanded = expandGroup(group);
+				Set<GeneAlt> candidates = determineCandidates(group);
+				expanded = expandGroup(group, candidates);
 				if (expanded)
 				{
 					double score = group.calcOverallPVal();
@@ -178,19 +181,23 @@ public class MutexGreedySearcher
 			prg.tick();
 		}
 
-//		printPvalDistr(map.values());
-
 		return map;
 	}
 
-	private void printPvalDistr(Collection<Double> pvals)
+	private void printPvalDistr(List<Double> result, List<Double> noise, int mult, double interval)
 	{
-		Histogram h = new Histogram(0.05);
-		for (Double pval : pvals)
+		Histogram h1 = new Histogram(interval);
+		for (Double pval : result)
 		{
-			h.count(pval);
+			h1.count(pval);
 		}
-		h.print();
+		Histogram h2 = new Histogram(interval);
+		for (Double pval : noise)
+		{
+			h2.count(pval);
+		}
+
+		h1.printTogether(h2, 1D / mult);
 	}
 
 	private List<String> selectToFDR(final Map<String, Double> pvMap, double thr)
@@ -229,15 +236,17 @@ public class MutexGreedySearcher
 	 * @param group groups to expand
 	 * @return true if expanded
 	 */
-	private boolean expandGroup(Group group)
+	private boolean expandGroup(Group group, Set<GeneAlt> candidates)
 	{
+		if (candidates.isEmpty()) return false;
+
 		// Choose the best candidate
 
 		GeneAlt best = null;
 		double bestPval = 1;
-		for (GeneAlt cand : group.candidates)
+		for (GeneAlt cand : candidates)
 		{
-			double pval = group.calcFuturePVal(cand, group.candidates.size());
+			double pval = group.calcFuturePVal(cand, new HashSet<GeneAlt>(candidates));
 
 			if (pval < bestPval)
 			{
@@ -249,7 +258,7 @@ public class MutexGreedySearcher
 		if (best != null)
 		{
 			// Add the best gene
-			group.addGene(best, group.candidates.size(), true);
+			group.addGene(best, candidates, true);
 
 			return true;
 		}
@@ -261,26 +270,26 @@ public class MutexGreedySearcher
 	 * non-fitting ones to the black set.
 	 * @param group group to update candidates
 	 */
-	private int determineCandidates(Group group)
+	private Set<GeneAlt> determineCandidates(Group group)
 	{
 		List<String> members = group.getGeneNames();
-		HashSet<String> candidates = new HashSet<String>(members);
-		Set<String> comm = traverse.getLinkedCommonDownstream(candidates);
-		candidates.addAll(comm);
-		candidates.addAll(traverse.goBFS(candidates, null, false));
-		candidates.removeAll(members);
-		candidates.retainAll(genes.keySet());
+		HashSet<String> candNames = new HashSet<String>(members);
+		Set<String> comm = traverse.getLinkedCommonDownstream(candNames);
+		candNames.addAll(comm);
+		candNames.addAll(traverse.goBFS(candNames, null, false));
+		candNames.removeAll(members);
+		candNames.retainAll(genes.keySet());
 
-		group.candidates.clear();
+		Set<GeneAlt> candidates = new HashSet<GeneAlt>();
 
-		for (String cand : candidates)
+		for (String cand : candNames)
 		{
 			// the upstream gene is either a candidate or we don't want to re-consider it
 
 			GeneAlt candGene = genes.get(cand);
 			if (group.isOKToConsider(candGene))
 			{
-				group.candidates.add(candGene);
+				candidates.add(candGene);
 			}
 			else
 			{
@@ -288,6 +297,6 @@ public class MutexGreedySearcher
 			}
 		}
 
-		return group.candidates.size();
+		return candidates;
 	}
 }
