@@ -90,9 +90,9 @@ public class MutexGreedySearcher
 		unshuffleAlterations();
 
 		// Print distribution -------------------
-		List<Double> scoresList = new ArrayList<Double>();
-		for (String s : seedScores.keySet()) scoresList.add(seedScores.get(s));
-		printPvalDistr(scoresList, randList, randMult, 0.05);
+//		List<Double> scoresList = new ArrayList<Double>();
+//		for (String s : seedScores.keySet()) scoresList.add(seedScores.get(s));
+//		printPvalDistr(scoresList, randList, randMult, 0.05);
 		// end of print -------------------------
 
 		List<String> seeds = FDR.select(seedScores, fdrThr, randList, randMult);
@@ -244,6 +244,8 @@ public class MutexGreedySearcher
 
 		GeneAlt best = null;
 		double bestPval = 1;
+		double currentPval = group.calcOverallPVal();
+
 		for (GeneAlt cand : candidates)
 		{
 			double pval = group.calcFuturePVal(cand, new HashSet<GeneAlt>(candidates));
@@ -255,7 +257,7 @@ public class MutexGreedySearcher
 			}
 		}
 
-		if (best != null)
+		if (best != null && bestPval < currentPval)
 		{
 			// Add the best gene
 			group.addGene(best, candidates, true);

@@ -87,7 +87,7 @@ public class GraphWriter
 					s+= "\ntype:edge\tid:" + rel.replaceAll("\t", " ") + "\tsource:" + src.getId() +
 						"\ttarget:" + trg.getId() + "\tarrow:Target";
 
-					double pv = Overlap.calcAlterationMutexPval(src.getChanges(), trg.getChanges());
+					double pv = Overlap.calcMutexPval(src.getChanges(), trg.getChanges());
 
 					int v = (int) Math.max(0, 255 - (-Math.log(pv) * 55.4));
 					String color = v + " " + v + " " + v;
@@ -151,7 +151,7 @@ public class GraphWriter
 				{
 					if (groupCoocCliques && isPartOfAClique(gene1, gene2, cliques)) continue;
 
-					double pv = Overlap.calcAlterationCoocPval(
+					double pv = Overlap.calcCoocPval(
 						gene1.getChanges(), gene2.getChanges());
 
 					if (pv < coocThr)
@@ -214,7 +214,7 @@ public class GraphWriter
 			{
 				if (gene1 == gene2) continue;
 
-				double pv = Overlap.calcAlterationCoocPval(
+				double pv = Overlap.calcCoocPval(
 					gene1.getChanges(), gene2.getChanges());
 
 				if (pv < coocThr)
@@ -235,7 +235,7 @@ public class GraphWriter
 
 				for (GeneAlt member : set)
 				{
-					double pv = Overlap.calcAlterationCoocPval(
+					double pv = Overlap.calcCoocPval(
 						gene.getChanges(), member.getChanges());
 
 					if (pv > coocThr)
@@ -278,7 +278,7 @@ public class GraphWriter
 			{
 				if (g1.getId().compareTo(g2.getId()) < 0)
 				{
-					pv[i++] = Overlap.calcAlterationCoocPval(g1.getChanges(), g2.getChanges());
+					pv[i++] = Overlap.calcCoocPval(g1.getChanges(), g2.getChanges());
 				}
 			}
 		}
@@ -296,7 +296,7 @@ public class GraphWriter
 		{
 			if (g1.equals(gene)) continue;
 
-			pv[i++] = Overlap.calcAlterationCoocPval(g1.getChanges(), gene.getChanges());
+			pv[i++] = Overlap.calcCoocPval(g1.getChanges(), gene.getChanges());
 		}
 		return Summary.geometricMean(pv);
 	}

@@ -1,8 +1,10 @@
 package org.cbio.mutex;
 
+import org.cbio.causality.util.ArrayUtil;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.Change;
 import org.cbio.causality.util.ChiSquare;
+import org.cbio.causality.util.FishersCombinedProbability;
 import org.cbio.causality.util.Overlap;
 import org.cbio.causality.util.Summary;
 
@@ -102,6 +104,8 @@ public class Group
 	{
 		if (size() == 1) return 1;
 
+//		return calcPairsOverallPVal();
+
 		double[] pvals = calcPvalArray();
 
 		double pval = 1;
@@ -170,6 +174,54 @@ public class Group
 		double pval = calcOverallPVal();
 		removeGene(gene, sets);
 		return pval;
+	}
+
+	public double calcPairsOverallPVal()
+	{
+		double[] pvals = new double[members.size() * (members.size() - 1) / 2];
+
+		if (members.size() == 2)
+		{
+			double p = Overlap.calcMutexPval(
+				members.get(0).getBooleanChanges(),
+				members.get(1).getBooleanChanges());
+
+			pvals[0] = p;
+		}
+		else
+		{
+			int k = 0;
+			for (int i = 0; i < members.size() - 1; i++)
+			{
+				for (int j = i + 1; j < members.size(); j++)
+				{
+					Set<Integer> skip = new HashSet<Integer>(Arrays.asList(i, j));
+
+					boolean[] ignore = getMergedAlterations(skip);
+					boolean[] use = ArrayUtil.negate(ignore);
+					addInMultiOverlaps(use,
+						members.get(i).getBooleanChanges(),
+						members.get(j).getBooleanChanges());
+
+					pvals[k++] = Overlap.calcMutexPval(
+						members.get(i).getBooleanChanges(),
+						members.get(j).getBooleanChanges(),
+						use);
+				}
+			}
+		}
+
+		double pval = FishersCombinedProbability.pValue(pvals);
+//		return pval;
+		return adjustToMultipleHypothesisTesting(pval);
+	}
+
+	private void addInMultiOverlaps(boolean[] use, boolean[] i, boolean[] j)
+	{
+		for (int k = 0; k < use.length; k++)
+		{
+			if (!use[k] && i[k] && j[k]) use[k] = true;
+		}
 	}
 
 	/**
@@ -379,6 +431,33 @@ public class Group
 				if (j == skipIndex) continue;
 
 				if (members.get(j).getChanges()[k].isAltered())
+				{
+					others[k] = true;
+					break;
+				}
+			}
+		}
+		return others;
+	}
+
+	/**
+	 * Gets a merged change array for the genes in the group. Skips the gene with the given index.
+	 * @param skipIndices indices of the genes to skip.
+	 * @return merged changes
+	 */
+	public boolean[] getMergedAlterations(Set<Integer> skipIndices)
+	{
+		boolean[] others = new boolean[members.get(0).size()];
+
+		for (int k = 0; k < others.length; k++)
+		{
+			others[k] = false;
+
+			for (int j = 0; j < members.size(); j++)
+			{
+				if (skipIndices.contains(j)) continue;
+
+				if (members.get(j).getBooleanChanges()[k])
 				{
 					others[k] = true;
 					break;
