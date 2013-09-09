@@ -54,32 +54,6 @@ public class IntersectionOfN
 		}
 	}
 
-	public double spit()
-	{
-		shuffle();
-		boolean[][][] b = new boolean[g.length][g.length][];
-		for (int i = 0; i < g.length; i++)
-		{
-			for (int j = 0; j < g.length; j++)
-			{
-				b[i][j] = toPrim(g[j]);
-				if (i != j) b[i][j] = ArrayUtil.negate(b[i][j]);
-			}
-		}
-		double[] pv = new double[g.length];
-		for (int i = 0; i < g.length; i++)
-		{
-			pv[i] = Overlap.calcMutexPval(b[i]);
-		}
-		return Math.pow(Summary.max(pv), g.length);
-
-//		return Summary.max(
-//			Overlap.calcCoocPvalOf3(toPrim(g[0]), ArrayUtil.negate(toPrim(g[1])), ArrayUtil.negate(toPrim(g[2]))),
-//			Overlap.calcCoocPvalOf3(toPrim(g[1]), ArrayUtil.negate(toPrim(g[0])), ArrayUtil.negate(toPrim(g[2]))),
-//			Overlap.calcCoocPvalOf3(toPrim(g[2]), ArrayUtil.negate(toPrim(g[1])), ArrayUtil.negate(toPrim(g[0])))
-//			);
-	}
-
 	public double[] spitMulti(int cnt)
 	{
 		double[] p = new double[cnt];
@@ -87,6 +61,7 @@ public class IntersectionOfN
 		Progress prg = new Progress(p.length);
 		for (int i = 0; i < cnt; i++)
 		{
+//			p[i] = maxOfN(g.length);
 			p[i] = spit();
 			prg.tick();
 		}
@@ -101,9 +76,53 @@ public class IntersectionOfN
 		}
 	}
 
+	private boolean[][] toBoolArray()
+	{
+		boolean[][] b = new boolean[g.length][];
+		for (int i = 0; i < b.length; i++)
+		{
+			b[i] = toPrim(g[i]);
+//			if (i > 0) b[i] = ArrayUtil.negate(b[i]);
+		}
+		return b;
+	}
+
+	public double maxOfN(int n)
+	{
+		double[] pval = new double[n];
+		for (int i = 0; i < n; i++)
+		{
+			pval[i] = spit();
+		}
+		return Math.pow(Summary.max(pval), n);
+	}
+
+	public double spit()
+	{
+//		shuffle();
+//		return Overlap.calcCoocPval(toBoolArray());
+
+		boolean[][][] b = new boolean[g.length][g.length][];
+		for (int i = 0; i < g.length; i++)
+		{
+			shuffle();
+			for (int j = 0; j < g.length; j++)
+			{
+				b[i][j] = toPrim(g[j]);
+				if (i != j) b[i][j] = ArrayUtil.negate(b[i][j]);
+			}
+		}
+		double[] pv = new double[g.length];
+		for (int i = 0; i < g.length; i++)
+		{
+			pv[i] = Overlap.calcCoocPval(b[i]);
+		}
+		return Math.pow(Summary.max(pv), g.length);
+	}
+
 	public static void main(String[] args)
 	{
-		IntersectionOfN inFi = new IntersectionOfN(100, 0.3, 0.4, 0.5);
+		IntersectionOfN inFi = new IntersectionOfN(300, 0.8, 0.2, 0.8);
 		double[] p = inFi.spitMulti(10000);
 //		takePower(p, 3);
 		DiscretePvalHisto h = new DiscretePvalHisto(p, 0.05);

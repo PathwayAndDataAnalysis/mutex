@@ -122,14 +122,16 @@ public class Group
 
 //		return calcPairsOverallPVal();
 
-		boolean[][][] b = preparesetsToTest();
-
-		double[] pvals = new double[b.length];
-		for (int i = 0; i < pvals.length; i++)
-		{
-			pvals[i] = Overlap.calcCoocPval(b[i]);
-		}
-		return Summary.max(pvals);
+//		boolean[][][] b = preparesetsToTest();
+//
+//		double[] pvals = new double[b.length];
+//		for (int i = 0; i < pvals.length; i++)
+//		{
+//			pvals[i] = Overlap.calcCoocPval(b[i]);
+//		}
+//		double p = Summary.max(pvals);
+//		if (size() > 2) p = Math.pow(p, size() - 1);
+//		return p;
 
 //		double[] pvals = calcPvalArray();
 //
@@ -141,8 +143,10 @@ public class Group
 //		}
 //
 //		pval = 1 - pval;
-//
-//		return adjustToMultipleHypothesisTesting(pval);
+//		pval = adjustToMultipleHypothesisTesting(pval);
+
+		double pval = Summary.max(calcPvalArray());
+		return pval;
 	}
 
 	/**
