@@ -3,6 +3,7 @@ package org.cbio.mutex;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.model.Change;
+import org.cbio.causality.util.ArrayUtil;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,6 +28,11 @@ public class GeneAlt implements Cloneable
 	 * Changes array.
 	 */
 	boolean[] ch;
+
+	/**
+	 * Negative of changes array.
+	 */
+	boolean[] neg;
 
 	/**
 	 * Constructor with parameters.
@@ -66,6 +72,16 @@ public class GeneAlt implements Cloneable
 		}
 
 		return ch;
+	}
+
+	/**
+	 * Gets the sample values in a boolean array.
+	 * @return changes in a boolean array
+	 */
+	public boolean[] getNegativeChanges()
+	{
+		if (neg == null) neg = ArrayUtil.negate(getBooleanChanges());
+		return neg;
 	}
 
 	/**
@@ -162,12 +178,14 @@ public class GeneAlt implements Cloneable
 		for (int i = 0; i < bool.length; i++)
 		{
 			ch[i] = bool[i];
+			if (neg != null) neg[i] = !ch[i];
 		}
 	}
 
 	public void unshuffle()
 	{
 		ch = null;
+		neg = null;
 	}
 
 	@Override

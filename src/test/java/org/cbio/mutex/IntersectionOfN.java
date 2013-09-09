@@ -57,12 +57,21 @@ public class IntersectionOfN
 	public double spit()
 	{
 		shuffle();
-		boolean[][] b = new boolean[g.length][];
+		boolean[][][] b = new boolean[g.length][g.length][];
 		for (int i = 0; i < g.length; i++)
 		{
-			b[i] = toPrim(g[i]);
+			for (int j = 0; j < g.length; j++)
+			{
+				b[i][j] = toPrim(g[j]);
+				if (i != j) b[i][j] = ArrayUtil.negate(b[i][j]);
+			}
 		}
-		return Overlap.calcMutexPval(b);
+		double[] pv = new double[g.length];
+		for (int i = 0; i < g.length; i++)
+		{
+			pv[i] = Overlap.calcMutexPval(b[i]);
+		}
+		return Math.pow(Summary.max(pv), g.length);
 
 //		return Summary.max(
 //			Overlap.calcCoocPvalOf3(toPrim(g[0]), ArrayUtil.negate(toPrim(g[1])), ArrayUtil.negate(toPrim(g[2]))),
@@ -94,7 +103,7 @@ public class IntersectionOfN
 
 	public static void main(String[] args)
 	{
-		IntersectionOfN inFi = new IntersectionOfN(1000, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9);
+		IntersectionOfN inFi = new IntersectionOfN(100, 0.3, 0.4, 0.5);
 		double[] p = inFi.spitMulti(10000);
 //		takePower(p, 3);
 		DiscretePvalHisto h = new DiscretePvalHisto(p, 0.05);

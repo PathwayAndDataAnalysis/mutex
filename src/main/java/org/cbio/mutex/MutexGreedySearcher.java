@@ -83,6 +83,7 @@ public class MutexGreedySearcher
 		List<Double> randList = new ArrayList<Double>();
 		for (int i = 0; i < randMult; i++)
 		{
+			System.out.println("\nrandomization " + i);
 			shuffleAlterations();
 			Map<String, Double> randScores = getGeneScores(genes.keySet(), maxGroupSize);
 			randList.addAll(randScores.values());

@@ -100,24 +100,49 @@ public class Group
 		return pvals;
 	}
 
+	public boolean[][][] preparesetsToTest()
+	{
+		boolean[][][] b = new boolean[size()][size()][];
+
+		for (int i = 0; i < b.length; i++)
+		{
+			for (int j = 0; j < b[i].length; j++)
+			{
+				b[i][j] = i == j ?
+					members.get(j).getBooleanChanges() :
+					members.get(j).getNegativeChanges();
+			}
+		}
+		return b;
+	}
+
 	public double calcOverallPVal()
 	{
 		if (size() == 1) return 1;
 
 //		return calcPairsOverallPVal();
 
-		double[] pvals = calcPvalArray();
+		boolean[][][] b = preparesetsToTest();
 
-		double pval = 1;
-
-		for (double v : pvals)
+		double[] pvals = new double[b.length];
+		for (int i = 0; i < pvals.length; i++)
 		{
-			pval *= (1 - v);
+			pvals[i] = Overlap.calcCoocPval(b[i]);
 		}
+		return Summary.max(pvals);
 
-		pval = 1 - pval;
-
-		return adjustToMultipleHypothesisTesting(pval);
+//		double[] pvals = calcPvalArray();
+//
+//		double pval = 1;
+//
+//		for (double v : pvals)
+//		{
+//			pval *= (1 - v);
+//		}
+//
+//		pval = 1 - pval;
+//
+//		return adjustToMultipleHypothesisTesting(pval);
 	}
 
 	/**
