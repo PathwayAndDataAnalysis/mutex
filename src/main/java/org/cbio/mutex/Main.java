@@ -53,8 +53,8 @@ public class Main
 
 		// Write the output graph to visualize in ChiBE
 		GraphWriter.write(groups, 0.001, linker,
-			new FileOutputStream("/home/ozgun/Desktop/mutex/greedy/" + data.name + ".cus"),
-//			new FileOutputStream("C:\\Users\\ozgun\\Desktop\\mutex\\" + data.name + ".cus"),
+//			new FileOutputStream("/home/ozgun/Desktop/mutex/greedy/" + data.name + ".cus"),
+			new FileOutputStream("C:\\Users\\ozgun\\Desktop\\mutex\\" + data.name + ".cus"),
 			data.name, true);
 
 		// Print textual results

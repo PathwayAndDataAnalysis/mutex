@@ -99,17 +99,16 @@ public class IntersectionOfN
 
 	public double spit()
 	{
-//		shuffle();
+		shuffle();
 //		return Overlap.calcCoocPval(toBoolArray());
 
 		boolean[][][] b = new boolean[g.length][g.length][];
 		for (int i = 0; i < g.length; i++)
 		{
-			shuffle();
 			for (int j = 0; j < g.length; j++)
 			{
 				b[i][j] = toPrim(g[j]);
-				if (i != j) b[i][j] = ArrayUtil.negate(b[i][j]);
+				if (j!=i) b[i][j] = ArrayUtil.negate(b[i][j]);
 			}
 		}
 		double[] pv = new double[g.length];
@@ -122,15 +121,15 @@ public class IntersectionOfN
 
 	public static void main(String[] args)
 	{
-		IntersectionOfN inFi = new IntersectionOfN(300, 0.8, 0.2, 0.8);
+		IntersectionOfN inFi = new IntersectionOfN(100, 0.3, 0.5, 0.2);
 		double[] p = inFi.spitMulti(10000);
 //		takePower(p, 3);
 		DiscretePvalHisto h = new DiscretePvalHisto(p, 0.05);
 		h.plot();
 
-//		System.out.println();
-//		Frequency f = new Frequency();
-//		f.count(p);
-//		f.print();
+		System.out.println();
+		Frequency f = new Frequency();
+		f.count(p);
+		f.print();
 	}
 }
