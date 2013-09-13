@@ -246,6 +246,7 @@ public class MutexGreedySearcher
 		GeneAlt best = null;
 		double bestPval = 1;
 		double currentPval = group.calcOverallPVal();
+//		double currentPval = 1;
 
 		for (GeneAlt cand : candidates)
 		{

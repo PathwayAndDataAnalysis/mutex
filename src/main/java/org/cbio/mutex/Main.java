@@ -14,8 +14,8 @@ import java.util.*;
  */
 public class Main
 {
-	public static final PortalDataset data = PortalDataset.breast;
-	public static final double MIN_ALTERATION_THR = 0.03;
+	public static final PortalDataset data = PortalDataset.endometrial;
+	public static final double MIN_ALTERATION_THR = 0.05;
 	public static final double FDR_THR = 0.05;
 	public static final int MAX_GROUP_SIZE = 10;
 	public static final int RANDOMIZATION_TRIALS = 10;

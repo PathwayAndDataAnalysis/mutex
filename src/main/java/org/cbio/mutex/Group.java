@@ -3,7 +3,6 @@ package org.cbio.mutex;
 import org.cbio.causality.util.ArrayUtil;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.Change;
-import org.cbio.causality.util.ChiSquare;
 import org.cbio.causality.util.FishersCombinedProbability;
 import org.cbio.causality.util.Overlap;
 import org.cbio.causality.util.Summary;
@@ -100,7 +99,7 @@ public class Group
 		return pvals;
 	}
 
-	public boolean[][][] preparesetsToTest()
+	public boolean[][][] prepareSetsToTest()
 	{
 		boolean[][][] b = new boolean[size()][size()][];
 
@@ -120,17 +119,17 @@ public class Group
 	{
 		if (size() == 1) return 1;
 
-//		return calcPairsOverallPVal();
+//		return calcPairsOverallPVal(-1);
 
-//		boolean[][][] b = preparesetsToTest();
-//
+//		boolean[][][] b = prepareSetsToTest();
 //		double[] pvals = new double[b.length];
 //		for (int i = 0; i < pvals.length; i++)
 //		{
 //			pvals[i] = Overlap.calcCoocPval(b[i]);
 //		}
 //		double p = Summary.max(pvals);
-//		if (size() > 2) p = Math.pow(p, size() - 1);
+//		if (size() > 2)
+//			p = Math.pow(p, size()-1);
 //		return p;
 
 //		double[] pvals = calcPvalArray();
@@ -143,9 +142,9 @@ public class Group
 //		}
 //
 //		pval = 1 - pval;
-//		pval = adjustToMultipleHypothesisTesting(pval);
 
-		double pval = Summary.max(calcPvalArray());
+		double pval = Math.pow(Summary.max(calcPvalArray()), size()-1);
+		pval = adjustToMultipleHypothesisTesting(pval);
 		return pval;
 	}
 
@@ -205,7 +204,7 @@ public class Group
 		return pval;
 	}
 
-	public double calcPairsOverallPVal()
+	public double calcPairsOverallPVal(int exclude)
 	{
 		double[] pvals = new double[members.size() * (members.size() - 1) / 2];
 
@@ -217,20 +216,32 @@ public class Group
 
 			pvals[0] = p;
 		}
+		if (members.size() == 3 && exclude >= 0)
+		{
+			double p = Overlap.calcMutexPval(
+				members.get(exclude == 0 ? 1 : 0).getBooleanChanges(),
+				members.get(exclude == 2 ? 1 : 2).getBooleanChanges());
+
+			pvals[0] = p;
+		}
 		else
 		{
 			int k = 0;
 			for (int i = 0; i < members.size() - 1; i++)
 			{
+				if (i == exclude) continue;
+
 				for (int j = i + 1; j < members.size(); j++)
 				{
-					Set<Integer> skip = new HashSet<Integer>(Arrays.asList(i, j));
+					if (j == exclude) continue;
+
+					Set<Integer> skip = new HashSet<Integer>(Arrays.asList(i, j, exclude));
 
 					boolean[] ignore = getMergedAlterations(skip);
 					boolean[] use = ArrayUtil.negate(ignore);
-					addInMultiOverlaps(use,
-						members.get(i).getBooleanChanges(),
-						members.get(j).getBooleanChanges());
+//					addInMultiOverlaps(use,
+//						members.get(i).getBooleanChanges(),
+//						members.get(j).getBooleanChanges());
 
 					pvals[k++] = Overlap.calcMutexPval(
 						members.get(i).getBooleanChanges(),
@@ -241,17 +252,19 @@ public class Group
 		}
 
 		double pval = FishersCombinedProbability.pValue(pvals);
-//		return pval;
-		return adjustToMultipleHypothesisTesting(pval);
+		return pval;
+//		return adjustToMultipleHypothesisTesting(pval);
 	}
 
-	private void addInMultiOverlaps(boolean[] use, boolean[] i, boolean[] j)
-	{
-		for (int k = 0; k < use.length; k++)
-		{
-			if (!use[k] && i[k] && j[k]) use[k] = true;
-		}
-	}
+//	private void addInMultiOverlaps(boolean[] use, boolean[] i, boolean[] j)
+//	{
+//		for (int k = 0; k < use.length; k++)
+//		{
+//			if (!use[k] && i[k] && j[k]) use[k] = true;
+//		}
+//	}
+
+
 
 	/**
 	 * Adds the given gene alteration to the group. Updates the unique coverage map only if the
