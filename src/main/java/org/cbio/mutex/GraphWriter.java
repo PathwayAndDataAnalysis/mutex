@@ -40,7 +40,7 @@ public class GraphWriter
 
 		for (Group group : groups)
 		{
-			if (group.size() > 2 || !hasLinkBetween(group, linker))
+//			if (group.size() > 2 || !hasLinkBetween(group, linker))
 			{
 				// write group id and members
 
@@ -48,12 +48,14 @@ public class GraphWriter
 
 				s += group.getGeneNamesInString().replaceAll(" ", ":");
 
-				s += "\ttext:" + "cov: " + fmt.format(group.calcCoverage());
+//				s += "\ttext:" + "cov: " + fmt.format(group.calcCoverage());
+				s += "\ttext:" + group.getTargets().toString().replaceAll("\\[","").
+					replaceAll("\\]","").replaceAll(",","");
 				s += "\ttextcolor:0 0 0\tbgcolor:255 255 255";
 			}
 
 			// write member nodes
-			for (GeneAlt gene : group.members)
+			for (GeneAlt gene : group.getAllGenes())
 			{
 				if (!nodes.contains(gene.getId()))
 				{
@@ -61,7 +63,7 @@ public class GraphWriter
 					double rat = gene.getAlteredRatio();
 					int v = 255 - (int) (rat * 255);
 
-					boolean activating = isActivated(gene);
+					boolean activating = gene.isActivated();
 
 					String color = activating ?
 						"255 " + v + " " + v : v + " " + v + " 255";
@@ -87,7 +89,7 @@ public class GraphWriter
 					s+= "\ntype:edge\tid:" + rel.replaceAll("\t", " ") + "\tsource:" + src.getId() +
 						"\ttarget:" + trg.getId() + "\tarrow:Target";
 
-					double pv = Overlap.calcMutexPval(src.getChanges(), trg.getChanges());
+					double pv = Overlap.calcMutexPval(src.getBooleanChanges(), trg.getBooleanChanges());
 
 					int v = (int) Math.max(0, 255 - (-Math.log(pv) * 55.4));
 					String color = v + " " + v + " " + v;
@@ -103,7 +105,7 @@ public class GraphWriter
 		Collections.reverse(groups);
 		for (Group group : groups)
 		{
-			set.addAll(group.members);
+			set.addAll(group.getAllGenes());
 		}
 
 		List<Set<GeneAlt>> cliques = null;
@@ -152,7 +154,7 @@ public class GraphWriter
 					if (groupCoocCliques && isPartOfAClique(gene1, gene2, cliques)) continue;
 
 					double pv = Overlap.calcCoocPval(
-						gene1.getChanges(), gene2.getChanges());
+						gene1.getBooleanChanges(), gene2.getBooleanChanges());
 
 					if (pv < coocThr)
 					{
@@ -182,28 +184,6 @@ public class GraphWriter
 		return !linker.linkProgressive(genes, genes, 0).isEmpty();
 	}
 
-	private static boolean isActivated(GeneAlt gene)
-	{
-		int cnAc = 0;
-		int cnIn = 0;
-
-		for (Change ch : gene.gene.get(Alteration.COPY_NUMBER))
-		{
-			if (ch == Change.ACTIVATING) cnAc++;
-			else if (ch == Change.INHIBITING) cnIn++;
-		}
-
-		if (cnAc != cnIn) return cnAc > cnIn;
-
-		cnIn = 0;
-
-		for (Change ch : gene.gene.get(Alteration.MUTATION))
-		{
-			if (ch == Change.INHIBITING) cnIn++;
-		}
-		return cnIn * 10 < gene.size();
-	}
-
 	private static List<Set<GeneAlt>> determineCliques(Set<GeneAlt> genes, double coocThr)
 	{
 		List<Set<GeneAlt>> list = new ArrayList<Set<GeneAlt>>();
@@ -215,7 +195,7 @@ public class GraphWriter
 				if (gene1 == gene2) continue;
 
 				double pv = Overlap.calcCoocPval(
-					gene1.getChanges(), gene2.getChanges());
+					gene1.getBooleanChanges(), gene2.getBooleanChanges());
 
 				if (pv < coocThr)
 				{
@@ -236,7 +216,7 @@ public class GraphWriter
 				for (GeneAlt member : set)
 				{
 					double pv = Overlap.calcCoocPval(
-						gene.getChanges(), member.getChanges());
+						gene.getBooleanChanges(), member.getBooleanChanges());
 
 					if (pv > coocThr)
 					{
@@ -278,7 +258,7 @@ public class GraphWriter
 			{
 				if (g1.getId().compareTo(g2.getId()) < 0)
 				{
-					pv[i++] = Overlap.calcCoocPval(g1.getChanges(), g2.getChanges());
+					pv[i++] = Overlap.calcCoocPval(g1.getBooleanChanges(), g2.getBooleanChanges());
 				}
 			}
 		}
@@ -296,7 +276,7 @@ public class GraphWriter
 		{
 			if (g1.equals(gene)) continue;
 
-			pv[i++] = Overlap.calcCoocPval(g1.getChanges(), gene.getChanges());
+			pv[i++] = Overlap.calcCoocPval(g1.getBooleanChanges(), gene.getBooleanChanges());
 		}
 		return Summary.geometricMean(pv);
 	}

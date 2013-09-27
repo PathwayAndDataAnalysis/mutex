@@ -117,7 +117,7 @@ public class MutexPairSearcher
 				GeneAlt gene1 = genes.get(seed1);
 				GeneAlt gene2 = genes.get(seed2);
 
-				Group group = new Group(gene1);
+				Group group = new Group(gene1, null);
 				expandGroup(group, gene2);
 //				double score = group.calcOverallPVal();
 				double score = Overlap.calcCoocPval(gene1.getBooleanChanges(), gene2.getBooleanChanges());
