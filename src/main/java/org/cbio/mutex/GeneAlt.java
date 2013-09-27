@@ -7,6 +7,8 @@ import org.cbio.causality.util.ArrayUtil;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 
 /**
  * A gene alteration data.
@@ -17,22 +19,28 @@ public class GeneAlt implements Cloneable
 	/**
 	 * Pack of gene alterations.
 	 */
-	AlterationPack gene;
+	private AlterationPack gene;
 
 	/**
 	 * Related alteration type.
 	 */
-	Alteration alt;
+	private Alteration alt;
 
 	/**
 	 * Changes array.
 	 */
-	boolean[] ch;
+	private boolean[] ch;
 
 	/**
 	 * Negative of changes array.
 	 */
-	boolean[] neg;
+	private boolean[] neg;
+
+	/**
+	 * A marking for hyper mutated samples. The two boolean arrays ch and neg shouldn't contain data
+	 * for these samples, so their sizes should be smaller.
+	 */
+	private boolean[] hyper;
 
 	/**
 	 * Constructor with parameters.
@@ -41,17 +49,40 @@ public class GeneAlt implements Cloneable
 	 */
 	public GeneAlt(AlterationPack gene, Alteration alt)
 	{
+		this(gene, alt, null);
+	}
+
+	/**
+	 * Constructor with parameters.
+	 * @param gene pack of gene alterations
+	 * @param alt the type of alteration to use
+	 */
+	public GeneAlt(AlterationPack gene, Alteration alt, boolean[] hyper)
+	{
 		this.gene = gene;
 		this.alt = alt;
+		this.hyper = hyper;
 	}
 
 	/**
 	 * Gets the related change array in the pack.
 	 * @return the related change array
 	 */
-	public Change[] getChanges()
+	private Change[] getChanges()
 	{
 		return gene.get(alt);
+	}
+
+	/**
+	 * Gets the sample values in a boolean array.
+	 * @return changes in a boolean array
+	 */
+	public boolean[] getBooleanChangesCopy()
+	{
+		boolean[] ch = getBooleanChanges();
+		boolean[] cop = new boolean[ch.length];
+		System.arraycopy(ch, 0, cop, 0, ch.length);
+		return cop;
 	}
 
 	/**
@@ -69,9 +100,25 @@ public class GeneAlt implements Cloneable
 			{
 				ch[i] = c[i].isAltered();
 			}
+
+			if (hyper != null) ch = crop(ch);
 		}
 
 		return ch;
+	}
+
+	private boolean[] crop(boolean[] ch)
+	{
+		assert ch.length == hyper.length;
+
+		boolean[] c = new boolean[ArrayUtil.countValue(hyper, false)];
+
+		int k = 0;
+		for (int i = 0; i < hyper.length; i++)
+		{
+			if (!hyper[i]) c[k++] = ch[i];
+		}
+		return c;
 	}
 
 	/**
@@ -125,7 +172,8 @@ public class GeneAlt implements Cloneable
 	 */
 	public int size()
 	{
-		return gene.getSize();
+		return getBooleanChanges().length;
+//		return gene.getSize();
 	}
 
 	/**
@@ -134,7 +182,16 @@ public class GeneAlt implements Cloneable
 	 */
 	public double getAlteredRatio()
 	{
-		return gene.getAlteredRatio(alt);
+		return countAltered() / (double) getBooleanChanges().length;
+	}
+
+	/**
+	 * Gets the count of altered samples.
+	 * @return alteration count
+	 */
+	public int countAltered()
+	{
+		return ArrayUtil.countValue(getBooleanChanges(), true);
 	}
 
 	public void removeMinorCopyNumberAlts()
@@ -166,6 +223,50 @@ public class GeneAlt implements Cloneable
 
 		this.ch = null;
 	}
+
+	public boolean isActivated()
+	{
+		int cnAc = 0;
+		int cnIn = 0;
+
+		for (Change ch : gene.get(Alteration.COPY_NUMBER))
+		{
+			if (ch == Change.ACTIVATING) cnAc++;
+			else if (ch == Change.INHIBITING) cnIn++;
+		}
+
+		if (cnAc != cnIn) return cnAc > cnIn;
+
+		cnIn = 0;
+
+		for (Change ch : gene.get(Alteration.MUTATION))
+		{
+			if (ch == Change.INHIBITING) cnIn++;
+		}
+		return cnIn * 10 < size();
+	}
+
+	public String getPrint(List<Integer> order)
+	{
+		assert new HashSet<Integer>(order).size() == order.size();
+
+		boolean[] ch = getBooleanChanges();
+		StringBuilder buf = new StringBuilder();
+		for (Integer o : order)
+		{
+			buf.append(ch[o] ? "x" : ".");
+		}
+		for (int i = 0; i < ch.length; i++)
+		{
+			if (!order.contains(i))
+				buf.append(ch[i] ? "x" : ".");
+		}
+
+
+		buf.append("  ").append(getId());
+		return buf.toString();
+	}
+
 
 	public void shuffle()
 	{

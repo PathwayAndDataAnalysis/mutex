@@ -1,6 +1,7 @@
 package org.cbio.mutex;
 
 import org.cbio.causality.analysis.Traverse;
+import org.cbio.causality.hprd.HPRD;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.util.FDR;
@@ -21,6 +22,11 @@ public class MutexGreedySearcher
 	private Map<String, GeneAlt> genes;
 
 	/**
+	 * Gistic sets
+	 */
+	private Map<String, Set<String>> gistic;
+
+	/**
 	 * Network provider.
 	 */
 	private Traverse traverse;
@@ -32,10 +38,13 @@ public class MutexGreedySearcher
 	 * @param alterationThreshold minimum ratio of altered samples, should be between 0 and 1.
 	 */
 	public MutexGreedySearcher(Traverse traverse, Map<String, AlterationPack> packs,
-		double alterationThreshold)
+		double alterationThreshold, Map<String, Set<String>> gistic, boolean removeHypermutated)
 	{
 		this.traverse = traverse;
 		this.genes = new HashMap<String, GeneAlt>();
+		this.gistic = gistic;
+
+		boolean[] hyper = removeHypermutated ? AltDistr.getOutlierAltered(packs.values()) : null;
 
 		System.out.println("unfiltered genes size = " + packs.size());
 
@@ -43,7 +52,7 @@ public class MutexGreedySearcher
 		{
 			AlterationPack pack = packs.get(s);
 
-			GeneAlt gene = new GeneAlt(pack, Alteration.GENOMIC);
+			GeneAlt gene = new GeneAlt(pack, Alteration.GENOMIC, hyper);
 			gene.removeMinorCopyNumberAlts();
 
 			// Filter out genes with les than 3% alteration
@@ -63,10 +72,32 @@ public class MutexGreedySearcher
 
 		System.out.println("filtered disconnected  = " + this.genes.size());
 
-//		for (GeneAlt gene : genes.values())
-//		{
-//			gene.shuffle();
-//		}
+//		checkAGroup();
+//		System.exit(0);
+	}
+
+	private void checkAGroup()
+	{
+		Group group = new Group(genes.get("PIK3R1"), null);
+		group.addGene(genes.get("FBXW7"), Collections.<GeneAlt>emptySet(), false);
+		group.addGene(genes.get("PIK3CA"), Collections.<GeneAlt>emptySet(), false);
+		group.addGene(genes.get("CTNNB1"), Collections.<GeneAlt>emptySet(), false);
+
+		List<String> dwstr = new ArrayList<String>(traverse.getLinkedCommonDownstream(
+			new HashSet<String>(group.getGeneNames())));
+
+		System.out.print(group.getGeneNamesInString() + "\tcover: " + group.calcCoverage() +
+			"\tpval: " + group.calcOverallPVal() + "\ttargets:");
+
+		for (String s : dwstr)
+		{
+			System.out.print(" " + s);
+		}
+		System.out.println();
+
+		System.out.println(group.getPrint(0));
+		System.out.println();
+
 	}
 
 	/**
@@ -78,14 +109,17 @@ public class MutexGreedySearcher
 	{
 		List<Group> groups = new ArrayList<Group>();
 
-		Map<String, Double> seedScores = getGeneScores(genes.keySet(), maxGroupSize);
+		System.out.println("\nCalculating seed scores");
+		Map<String, Double> seedScores = getGeneScores(genes.keySet(), maxGroupSize, null);
+
+		System.out.println("\nEstimating the null distribution");
 
 		List<Double> randList = new ArrayList<Double>();
+		Progress prg = new Progress(genes.keySet().size() * randMult);
 		for (int i = 0; i < randMult; i++)
 		{
-			System.out.println("\nrandomization " + (i+1));
 			shuffleAlterations();
-			Map<String, Double> randScores = getGeneScores(genes.keySet(), maxGroupSize);
+			Map<String, Double> randScores = getGeneScores(genes.keySet(), maxGroupSize, prg);
 			randList.addAll(randScores.values());
 		}
 		unshuffleAlterations();
@@ -114,7 +148,7 @@ public class MutexGreedySearcher
 		{
 			GeneAlt gene = genes.get(seed);
 
-			Group group = new Group(gene);
+			Group group = new Group(gene, gistic);
 
 			Set<GeneAlt> candidates;
 			do
@@ -123,12 +157,14 @@ public class MutexGreedySearcher
 			}
 			while(expandGroup(group, candidates) && group.size() < maxGroupSize);
 
-			assert group.size() > 1;
+			assert group.size() > 1 : "seed: " + seed;
 
 			group.shrinkToSignificantMembers(pvalThr);
 
-			assert group.size() > 1;
+			assert group.size() > 1 : "seed: " + seed;
 
+			group.remember(getCandidateNames(group), genes, pvalThr);
+			group.fetchTragets(traverse, genes);
 			groups.add(group);
 		}
 
@@ -151,17 +187,17 @@ public class MutexGreedySearcher
 		}
 	}
 
-	private Map<String, Double> getGeneScores(Set<String> names, double maxGroupSize)
+	private Map<String, Double> getGeneScores(Set<String> names, double maxGroupSize, Progress prg)
 	{
 		Map<String, Double> map = new HashMap<String, Double>();
 
-		Progress prg = new Progress(names.size());
+		if (prg == null) prg = new Progress(names.size());
 
 		for (String seed : names)
 		{
 			GeneAlt gene = genes.get(seed);
 
-			Group group = new Group(gene);
+			Group group = new Group(gene, gistic);
 
 			double bestScore = 1;
 			boolean expanded;
@@ -276,13 +312,7 @@ public class MutexGreedySearcher
 	 */
 	private Set<GeneAlt> determineCandidates(Group group)
 	{
-		List<String> members = group.getGeneNames();
-		HashSet<String> candNames = new HashSet<String>(members);
-		Set<String> comm = traverse.getLinkedCommonDownstream(candNames);
-		candNames.addAll(comm);
-		candNames.addAll(traverse.goBFS(candNames, null, false));
-		candNames.removeAll(members);
-		candNames.retainAll(genes.keySet());
+		Set<String> candNames = getCandidateNames(group);
 
 		Set<GeneAlt> candidates = new HashSet<GeneAlt>();
 
@@ -302,5 +332,33 @@ public class MutexGreedySearcher
 		}
 
 		return candidates;
+	}
+
+	private Set<String> getCandidateNames(Group group)
+	{
+		List<String> members = group.getGeneNames();
+		HashSet<String> candNames = new HashSet<String>(members);
+		Set<String> comm = traverse.getLinkedCommonDownstream(candNames);
+		candNames.addAll(comm);
+		candNames.addAll(traverse.goBFS(candNames, null, false));
+		candNames.removeAll(members);
+		candNames.retainAll(genes.keySet());
+		return candNames;
+	}
+
+	private Set<String> getCandidateNamesX(Group group)
+	{
+		List<String> members = group.getGeneNames();
+		HashSet<String> candNames = new HashSet<String>(members);
+
+		for (String member : members)
+		{
+			candNames.addAll(HPRD.getInteractors(member));
+		}
+
+		candNames.removeAll(members);
+		candNames.retainAll(genes.keySet());
+
+		return candNames;
 	}
 }

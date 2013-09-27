@@ -1,8 +1,9 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.util.ArrayUtil;
+import org.cbio.causality.analysis.Traverse;
 import org.cbio.causality.model.Alteration;
-import org.cbio.causality.model.Change;
+import org.cbio.causality.model.AlterationPack;
+import org.cbio.causality.util.ArrayUtil;
 import org.cbio.causality.util.FishersCombinedProbability;
 import org.cbio.causality.util.Overlap;
 import org.cbio.causality.util.Summary;
@@ -27,7 +28,13 @@ public class Group
 	Set<GeneAlt> black;
 
 	/**
-	 * These are the genes that we consider for expanding in the next cycle.
+	 * These are the genes that we want to remember that we considered those as other candidates.
+	 * These genes may not be counted towards multiple hypothesis testing for different reasons.
+	 */
+	Map<GeneAlt, Set<GeneAlt>> alternatives;
+
+	/**
+	 * These are the genes that we considered as alternative for the current members.
 	 */
 	Map<String, Set<GeneAlt>> candidateMap;
 
@@ -35,6 +42,16 @@ public class Group
 	 * Boolean arrays showing unique coverage of each  member.
 	 */
 	Map<String, boolean[]> unique;
+
+	/**
+	 * Gistic sets;
+	 */
+	private Map<String, Set<String>> gistic;
+
+	/**
+	 * Common targets of the genes.
+	 */
+	List<String> targets;
 
 	/**
 	 * Used to refer the merge of genes.
@@ -50,9 +67,10 @@ public class Group
 	 * Constructor with the seed gene.
 	 * @param seed initial gene alteration
 	 */
-	public Group(GeneAlt seed)
+	public Group(GeneAlt seed, Map<String, Set<String>> gistic)
 	{
 		this();
+		this.gistic = gistic;
 		addGene(seed, new HashSet<GeneAlt>(), false);
 		initUniqueCoverageMap();
 	}
@@ -99,23 +117,44 @@ public class Group
 		return pvals;
 	}
 
-	public boolean[][][] prepareSetsToTest()
+	/**
+	 * Calculates p-values for each gene in the group, assuming that the member at the specified
+	 * index is replaced with the given gene.
+	 * @return p-values
+	 */
+	public Map<String, Double> calcPValsAsIf(GeneAlt alternative, int index)
 	{
-		boolean[][][] b = new boolean[size()][size()][];
+		Map<String, Double> pvals = new HashMap<String, Double>();
 
-		for (int i = 0; i < b.length; i++)
+		if (members.size() == 2)
 		{
-			for (int j = 0; j < b[i].length; j++)
+			GeneAlt g0 = index != 0 ? members.get(0) : alternative;
+			GeneAlt g1 = index != 1 ? members.get(1) : alternative;
+			double p = Overlap.calcMutexPval(g0.getBooleanChanges(), g1.getBooleanChanges());
+
+			pvals.put(g0.getId(), p);
+			pvals.put(g1.getId(), p);
+		}
+		else
+		{
+			for (int i = 0; i < members.size(); i++)
 			{
-				b[i][j] = i == j ?
-					members.get(j).getBooleanChanges() :
-					members.get(j).getNegativeChanges();
+				boolean[] others = i == index? getMergedAlterations(i) :
+					getMergedAlterations(i, alternative, index);
+
+				GeneAlt gene = i == index ? alternative : members.get(i);
+				pvals.put(gene.getId(), Overlap.calcMutexPval(gene.getBooleanChanges(), others));
 			}
 		}
-		return b;
+		return pvals;
 	}
 
 	public double calcOverallPVal()
+	{
+		return calcOverallPVal(true);
+	}
+
+	public double calcOverallPVal(boolean correctForMultipleHypothesisTesting)
 	{
 		if (size() == 1) return 1;
 
@@ -143,7 +182,16 @@ public class Group
 //
 //		pval = 1 - pval;
 
-		double pval = Math.pow(Summary.max(calcPvalArray()), size()-1);
+		double pval = Summary.max(calcPvalArray());
+		if (correctForMultipleHypothesisTesting) pval = adjustToMultipleHypothesisTesting(pval);
+		return pval;
+	}
+
+	public double calcOverallPVal(GeneAlt alternative, int index)
+	{
+		assert index < members.size();
+
+		double pval = Summary.max(getPvalArray(calcPValsAsIf(alternative, index)));
 		pval = adjustToMultipleHypothesisTesting(pval);
 		return pval;
 	}
@@ -188,6 +236,20 @@ public class Group
 			pv[i++] = d;
 		}
 		return pv;
+	}
+
+	public Set<GeneAlt> getMemberAlternatives(GeneAlt mem, double thr, Set<GeneAlt> cands)
+	{
+		Set<GeneAlt> set = new HashSet<GeneAlt>();
+
+		for (GeneAlt cand : cands)
+		{
+			if (Overlap.calcCoocPval(mem.getBooleanChanges(), cand.getBooleanChanges()) < 0.01)
+			{
+				if (calcOverallPVal(cand, members.indexOf(mem)) <= thr) set.add(cand);
+			}
+		}
+		return set;
 	}
 
 	/**
@@ -264,7 +326,28 @@ public class Group
 //		}
 //	}
 
+	/**
+	 * These are candidates for alternatives.
+	 * @param genes
+	 */
+	public void remember(Set<String> names, Map<String, GeneAlt> genes, double thr)
+	{
+		Set<GeneAlt> cands = new HashSet<GeneAlt>();
+		for (String name : names)
+		{
+			if (genes.containsKey(name))
+			{
+				cands.add(genes.get(name));
+			}
+		}
 
+		alternatives = new HashMap<GeneAlt, Set<GeneAlt>>();
+
+		for (GeneAlt member : members)
+		{
+			alternatives.put(member, getMemberAlternatives(member, thr, cands));
+		}
+	}
 
 	/**
 	 * Adds the given gene alteration to the group. Updates the unique coverage map only if the
@@ -274,6 +357,8 @@ public class Group
 	 */
 	public List<Set<GeneAlt>> addGene(GeneAlt gene, Set<GeneAlt> cands, boolean permanent)
 	{
+		if (!cands.isEmpty()) cands = filterCandsToQualify(cands, gene);
+
 		members.add(gene);
 		candidateMap.put(gene.getId(), cands);
 
@@ -289,6 +374,62 @@ public class Group
 			}
 		}
 		return candSets;
+	}
+
+	private Set<GeneAlt> filterCandsToQualify(Set<GeneAlt> cands, GeneAlt placed)
+	{
+		if (cands.isEmpty()) Collections.emptySet();
+
+		// Remove the ones in the same gistic set with a member or placed gene.
+		Set<GeneAlt> rem = new HashSet<GeneAlt>();
+
+		// Filter using gistic overlaps
+
+		if (gistic != null)
+		{
+			for (GeneAlt cand : cands)
+			{
+				Set<String> set = gistic.get(cand.getId());
+				if (set != null)
+				{
+					if (set.contains(placed.getId())) rem.add(cand);
+
+					for (GeneAlt member : members)
+					{
+						if (set.contains(member.getId())) rem.add(cand);
+					}
+				}
+			}
+		}
+
+		cands = new HashSet<GeneAlt>(cands);
+		cands.removeAll(rem);
+
+		List<Set<GeneAlt>> sets = addGene(placed, Collections.<GeneAlt>emptySet(), false);
+		double thr = calcOverallPVal(false);
+		removeGene(placed, sets);
+
+		boolean[] merged = getMergedAlterations(-1);
+		int mCnt = ArrayUtil.countValue(merged, true);
+		int n = placed.size();
+
+		Set<GeneAlt> filtered = new HashSet<GeneAlt>();
+
+		for (GeneAlt cand : cands)
+		{
+			int altCnt = cand.countAltered();
+
+			int o = Math.max(mCnt + altCnt - n, 0);
+			if (o > mCnt || o > altCnt)
+			{
+				System.out.println();
+			}
+			double p = Overlap.calcMutexPval(n, o, mCnt, altCnt);
+
+			if (p <= thr) filtered.add(cand);
+		}
+
+		return filtered;
 	}
 
 	/**
@@ -322,7 +463,7 @@ public class Group
 		int k = 0;
 		for (GeneAlt gene : members)
 		{
-			boolean[] b = getCoverage(gene);
+			boolean[] b = gene.getBooleanChangesCopy();
 			a[k++] = b;
 			unique.put(gene.getId(), b);
 		}
@@ -355,21 +496,21 @@ public class Group
 		unique.put(MERGE, merge);
 	}
 
-	/**
-	 * Converts the change array to a boolean array where the value is true if altered.
-	 * @param gene gene alteration to convert
-	 * @return coverage array
-	 */
-	private boolean[] getCoverage(GeneAlt gene)
-	{
-		Change[] ch = gene.getChanges();
-		boolean[] b = new boolean[ch.length];
-		for (int i = 0; i < ch.length; i++)
-		{
-			if (ch[i].isAltered()) b[i] = true;
-		}
-		return b;
-	}
+//	/**
+//	 * Converts the change array to a boolean array where the value is true if altered.
+//	 * @param gene gene alteration to convert
+//	 * @return coverage array
+//	 */
+//	private boolean[] getCoverage(GeneAlt gene)
+//	{
+//		Change[] ch = gene.getChanges();
+//		boolean[] b = new boolean[ch.length];
+//		for (int i = 0; i < ch.length; i++)
+//		{
+//			if (ch[i].isAltered()) b[i] = true;
+//		}
+//		return b;
+//	}
 
 	/**
 	 * Updates the unique coverage map with the given gene alteration.
@@ -379,7 +520,7 @@ public class Group
 	{
 		assert !unique.containsKey(gene.getId());
 
-		boolean[] x = getCoverage(gene);
+		boolean[] x = gene.getBooleanChangesCopy();
 		boolean[] merge = unique.get(MERGE);
 		assert merge != null;
 
@@ -422,7 +563,7 @@ public class Group
 		// not ok if black-listed
 		if (black.contains(gene)) return false;
 
-		boolean[] x = getCoverage(gene);
+		boolean[] x = gene.getBooleanChanges();
 		boolean[] merge = unique.get(MERGE);
 
 		// if all alterations already covered by the merge of genes it is not ok
@@ -472,7 +613,40 @@ public class Group
 			{
 				if (j == skipIndex) continue;
 
-				if (members.get(j).getChanges()[k].isAltered())
+				if (members.get(j).getBooleanChanges()[k])
+				{
+					others[k] = true;
+					break;
+				}
+			}
+		}
+		return others;
+	}
+
+	/**
+	 * Gets a merged change array for the genes in the group. Skips the gene with the given index.
+	 * Assumes the member at the specified <code>index</code> is replaced with the given
+	 * <code>alternative</code>.
+	 * @param skipIndex index of the gene to skip. Use negative value if no skipping is required
+	 * @return merged changes
+	 */
+	public boolean[] getMergedAlterations(int skipIndex, GeneAlt alternative, int altIndex)
+	{
+		assert skipIndex != altIndex;
+
+		boolean[] others = new boolean[members.get(0).size()];
+
+		for (int k = 0; k < others.length; k++)
+		{
+			others[k] = false;
+
+			for (int j = 0; j < members.size(); j++)
+			{
+				if (j == skipIndex) continue;
+
+				GeneAlt gene = j == altIndex ? alternative : members.get(j);
+
+				if (gene.getBooleanChanges()[k])
 				{
 					others[k] = true;
 					break;
@@ -578,6 +752,7 @@ public class Group
 
 		candSize++;
 
+//		return pval * candSize;
 		return 1 - pow(1 - pval, candSize);
 	}
 
@@ -622,7 +797,15 @@ public class Group
 	 */
 	public int size()
 	{
-		return members.size();
+		int s = members.size();
+		if (alternatives != null)
+		{
+			for (Set<GeneAlt> altSet : alternatives.values())
+			{
+				s += altSet.size();
+			}
+		}
+		return s;
 	}
 
 	/**
@@ -634,9 +817,29 @@ public class Group
 	{
 		for (GeneAlt gene : members)
 		{
-			if (!g.members.contains(gene)) return false;
+			if (!g.members.contains(gene) && !g.alternativesContain(gene)) return false;
 		}
+		for (Set<GeneAlt> altSet : alternatives.values())
+		{
+			for (GeneAlt gene : altSet)
+			{
+				if (!g.members.contains(gene) && !g.alternativesContain(gene)) return false;
+			}
+		}
+
+		if (members.size() == g.members.size() && alternatives.size() == g.alternatives.size())
+			return calcOverallPVal() >= g.calcOverallPVal();
+
 		return true;
+	}
+
+	private boolean alternativesContain(GeneAlt gene)
+	{
+		for (Set<GeneAlt> set : alternatives.values())
+		{
+			if (set.contains(gene)) return true;
+		}
+		return false;
 	}
 
 	/**
@@ -664,6 +867,10 @@ public class Group
 		for (GeneAlt gene : members)
 		{
 			s += " " + gene.getId();
+			for (GeneAlt al : alternatives.get(gene))
+			{
+				s += ":" + al.getId();
+			}
 		}
 		return s.trim();
 	}
@@ -678,6 +885,12 @@ public class Group
 		for (GeneAlt gene : members)
 		{
 			names.add(gene.getId());
+
+			if (alternatives != null)
+				for (GeneAlt al : alternatives.get(gene))
+				{
+					names.add(al.getId());
+				}
 		}
 		return names;
 	}
@@ -702,7 +915,24 @@ public class Group
 		{
 			if (gene.getId().equals(id)) return gene;
 		}
+		for (Set<GeneAlt> altSet : alternatives.values())
+		{
+			for (GeneAlt gene : altSet)
+			{
+				if (gene.getId().equals(id)) return gene;
+			}
+		}
 		return null;
+	}
+
+	public List<GeneAlt> getAllGenes()
+	{
+		List<GeneAlt> genes= new ArrayList<GeneAlt>(members);
+		for (Set<GeneAlt> altSet : alternatives.values())
+		{
+			genes.addAll(altSet);
+		}
+		return genes;
 	}
 
 	/**
@@ -731,11 +961,11 @@ public class Group
 
 		for (GeneAlt gene : members)
 		{
-			Change[] ch = gene.getChanges();
+			boolean[] ch = gene.getBooleanChanges();
 
 			for (int i = 0; i < ch.length; i++)
 			{
-				if (ch[i].isAltered() && !order.contains(i)) order.add(i);
+				if (ch[i] && !order.contains(i)) order.add(i);
 			}
 		}
 		return order;
@@ -745,7 +975,7 @@ public class Group
 	 * Gets the oncoprint of the members in a String.
 	 * @return oncoprint
 	 */
-	public String getPrint()
+	public String getPrint(double thr)
 	{
 		List<Integer> order = getPrintOrdering();
 		Map<String, Double> p = calcPVals();
@@ -753,10 +983,16 @@ public class Group
 		for (GeneAlt gene : members)
 		{
 			if (s.length() > 0) s.append("\n");
-			s.append(gene.gene.getPrint(gene.alt, order)).
+			s.append(gene.getPrint(order)).
 				append((gene.getId().length() < 4) ? "  \t" : "\t").
-				append((gene.alt == Alteration.ACTIVATING) ? "+" : "-").append("\tp-val: ").
+				append("\tp-val: ").
 				append(fmt.format(p.get(gene.getId())));
+
+			for (GeneAlt cand : alternatives.get(gene))
+			{
+				s.append("\n");
+				s.append(cand.getPrint(order));
+			}
 		}
 		return s.toString();
 	}
@@ -799,5 +1035,32 @@ public class Group
 				return new Double(b2.calcCoverage()).compareTo(b1.calcCoverage());
 			}
 		});
+	}
+
+	public void fetchTragets(Traverse traverse, final Map<String, GeneAlt> genesMap)
+	{
+		targets = new ArrayList<String>(traverse.getLinkedCommonDownstream(
+			new HashSet<String>(getGeneNames())));
+
+		Collections.sort(targets, new Comparator<String>()
+		{
+			@Override
+			public int compare(String o1, String o2)
+			{
+				GeneAlt pack1 = genesMap.get(o1);
+				GeneAlt pack2 = genesMap.get(o2);
+
+				Integer cnt1 = pack1 == null ? 0 : pack1.countAltered();
+				Integer cnt2 = pack2 == null ? 0 : pack2.countAltered();
+
+				if (cnt1.equals(cnt2)) return o1.compareTo(o2);
+				else return cnt2.compareTo(cnt1);
+			}
+		});
+	}
+
+	public List<String> getTargets()
+	{
+		return targets;
 	}
 }

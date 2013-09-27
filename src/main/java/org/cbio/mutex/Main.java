@@ -15,10 +15,14 @@ import java.util.*;
 public class Main
 {
 	public static final PortalDataset data = PortalDataset.endometrial;
-	public static final double MIN_ALTERATION_THR = 0.05;
+	public static final double MIN_ALTERATION_THR = 0.07;
 	public static final double FDR_THR = 0.05;
-	public static final int MAX_GROUP_SIZE = 10;
+	public static final int MAX_GROUP_SIZE = 5;
 	public static final int RANDOMIZATION_TRIALS = 10;
+
+	public static final boolean REMOVE_HYPERMUTATED_OUTLIERS = true;
+	public static final boolean LIMIT_TO_MUTSIG_AND_GISTIC_GENES = false;
+	public static final boolean USE_GISTIC_GROUPING = true;
 
 	public static void main(String[] args) throws IOException
 	{
@@ -29,17 +33,34 @@ public class Main
 			"controls-state-change", "controls-expression", "controls-degradation");
 		linker.load(Main.class.getResourceAsStream("SPIKE.txt"), "is-upstream-of");
 
+		// Filter gens to mutsig and gistic
+		Set<String> symbols = linker.traverse.getSymbols();
+		System.out.println("symbols initial size = " + symbols.size());
+
+		if (LIMIT_TO_MUTSIG_AND_GISTIC_GENES)
+		{
+			GeneFilterer.filterToMutsigAndGistic(symbols, data);
+			System.out.println("symbols size filtered by mutsig and gistic= " + symbols.size());
+		}
+
+		Map<String, Set<String>> gistic = USE_GISTIC_GROUPING ?
+			GeneFilterer.getGisticSets(data) : null;
+
 		// load the alteration data
 		PortalReader reader = new PortalReader();
-		final Map<String,AlterationPack> genesMap = reader.readAlterations(
-			data, linker.traverse.getSymbols());
+		final Map<String,AlterationPack> genesMap = reader.readAlterations(data, symbols);
+		for (String s : new HashSet<String>(genesMap.keySet()))
+		{
+			if (!symbols.contains(s)) genesMap.remove(s);
+		}
 
 		// greedy search for the upstream of each gene
 
 		MutexGreedySearcher searcher = new MutexGreedySearcher(
-			linker.traverse, genesMap, MIN_ALTERATION_THR);
+			linker.traverse, genesMap, MIN_ALTERATION_THR, gistic, REMOVE_HYPERMUTATED_OUTLIERS);
 
 		List<Group> groups = searcher.search(FDR_THR, MAX_GROUP_SIZE, RANDOMIZATION_TRIALS);
+		double thr = getWorstPval(groups);
 
 //		// pair search
 //		MutexPairSearcher searcher = new MutexPairSearcher(genesMap, MIN_ALTERATION_THR);
@@ -52,44 +73,36 @@ public class Main
 		Group.sortToCoverage(groups);
 
 		// Write the output graph to visualize in ChiBE
-		GraphWriter.write(groups, 0.001, linker,
-//			new FileOutputStream("/home/ozgun/Desktop/mutex/greedy/" + data.name + ".cus"),
-			new FileOutputStream("C:\\Users\\ozgun\\Desktop\\mutex\\" + data.name + ".cus"),
-			data.name, true);
+		GraphWriter.write(groups, 0.01, linker,
+			new FileOutputStream("/home/ozgun/Desktop/mutex/" + data.name + ".cus"),
+//			new FileOutputStream("C:\\Users\\ozgun\\Desktop\\mutex\\" + data.name + ".cus"),
+			data.name, false);
 
 		// Print textual results
 		for (Group group : groups)
 		{
-			List<String> dwstr = new ArrayList<String>(linker.traverse.getLinkedCommonDownstream(
-				new HashSet<String>(group.getGeneNames())));
+			System.out.print("[" + group.getGeneNamesInString() + "]\tcover: " + group.calcCoverage() +
+				"\tpval: " + group.calcOverallPVal() + "\ttargets:" + group.getTargets());
 
-			Collections.sort(dwstr, new Comparator<String>()
-			{
-				@Override
-				public int compare(String o1, String o2)
-				{
-					AlterationPack pack1 = genesMap.get(o1);
-					AlterationPack pack2 = genesMap.get(o2);
-
-					Integer cnt1 = pack1 == null ? 0 : pack1.getAlteredCount(Alteration.GENOMIC);
-					Integer cnt2 = pack2 == null ? 0 : pack2.getAlteredCount(Alteration.GENOMIC);
-
-					if (cnt1.equals(cnt2)) return o1.compareTo(o2);
-					else return cnt2.compareTo(cnt1);
-				}
-			});
-
-			System.out.print(group.getGeneNames() + "\tcover: " + group.calcCoverage() +
-				"\tpval: " + group.calcOverallPVal() + "\ttargets:");
-
-			for (String s : dwstr)
-			{
-				System.out.print(" " + s);
-			}
 			System.out.println();
 
-			System.out.println(group.getPrint());
+			System.out.println(group.getPrint(thr));
 			System.out.println();
 		}
+	}
+
+	private static double getWorstPval(List<Group> groups)
+	{
+		double worst = 0;
+
+		for (Group group : groups)
+		{
+			double pv = group.calcOverallPVal();
+			if (pv > worst)
+			{
+				worst = pv;
+			}
+		}
+		return worst;
 	}
 }
