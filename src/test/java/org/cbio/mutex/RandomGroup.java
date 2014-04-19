@@ -170,7 +170,7 @@ public class RandomGroup
 		double[] v = getWorstPvals(lists);
 
 		Histogram h = new Histogram(0.05);
-		h.setBordered(true);
+		h.setBorderAtZero(true);
 		h.countAll(v);
 		h.printDensity();
 	}
