@@ -2,10 +2,10 @@ package org.cbio.mutex.mutation;
 
 import org.cbio.causality.data.portal.CBioPortalAccessor;
 import org.cbio.causality.data.portal.PortalDataset;
-import org.cbio.causality.hprd.HPRD;
 import org.cbio.causality.idmapping.Length;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
+import org.cbio.causality.network.HPRD;
 import org.cbio.causality.util.Histogram;
 
 import java.io.IOException;

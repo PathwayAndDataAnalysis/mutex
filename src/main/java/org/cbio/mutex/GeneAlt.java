@@ -5,6 +5,7 @@ import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.model.Change;
 import org.cbio.causality.util.ArrayUtil;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -14,7 +15,7 @@ import java.util.List;
  * A gene alteration data.
  * @author Ozgun Babur
  */
-public class GeneAlt implements Cloneable
+public class GeneAlt implements Cloneable, Serializable
 {
 	/**
 	 * Pack of gene alterations.
@@ -25,6 +26,11 @@ public class GeneAlt implements Cloneable
 	 * Related alteration type.
 	 */
 	private Alteration alt;
+
+	/**
+	 * Changes array shuffled in a sticky way.
+	 */
+	private boolean[] shuf;
 
 	/**
 	 * Changes array.
@@ -41,6 +47,16 @@ public class GeneAlt implements Cloneable
 	 * for these samples, so their sizes should be smaller.
 	 */
 	private boolean[] hyper;
+
+	/**
+	 * This is the estimated null distribution of group scores with this gene.
+	 */
+	double[] randScores;
+
+	/**
+	 * This is the estimated null distribution of group scores with this gene.
+	 */
+	private double[] randScoresSave;
 
 	/**
 	 * Constructor with parameters.
@@ -93,15 +109,23 @@ public class GeneAlt implements Cloneable
 	{
 		if (ch == null)
 		{
-			Change[] c = getChanges();
-			ch = new boolean[c.length];
-
-			for (int i = 0; i < c.length; i++)
+			if (shuf == null)
 			{
-				ch[i] = c[i].isAltered();
-			}
+				Change[] c = getChanges();
+				ch = new boolean[c.length];
 
-			if (hyper != null) ch = crop(ch);
+				for (int i = 0; i < c.length; i++)
+				{
+					ch[i] = c[i].isAltered();
+				}
+
+				if (hyper != null) ch = crop(ch);
+			}
+			else
+			{
+				ch = new boolean[shuf.length];
+				System.arraycopy(shuf, 0, ch, 0, ch.length);
+			}
 		}
 
 		return ch;
@@ -117,6 +141,20 @@ public class GeneAlt implements Cloneable
 		for (int i = 0; i < hyper.length; i++)
 		{
 			if (!hyper[i]) c[k++] = ch[i];
+		}
+		return c;
+	}
+
+	private String[] crop(String[] let)
+	{
+		assert let.length == hyper.length;
+
+		String[] c = new String[ArrayUtil.countValue(hyper, false)];
+
+		int k = 0;
+		for (int i = 0; i < hyper.length; i++)
+		{
+			if (!hyper[i]) c[k++] = let[i];
 		}
 		return c;
 	}
@@ -194,79 +232,46 @@ public class GeneAlt implements Cloneable
 		return ArrayUtil.countValue(getBooleanChanges(), true);
 	}
 
-	public void removeMinorCopyNumberAlts()
-	{
-		assert alt == Alteration.GENOMIC : "Use this method only with genomic alteration. " +
-			"Remember that this method will alter genomic changes array.";
-
-		int up = 0;
-		int dw = 0;
-		for (Change c : gene.get(Alteration.COPY_NUMBER))
-		{
-			if (c == Change.ACTIVATING) up++;
-			else if (c == Change.INHIBITING) dw++;
-		}
-
-//		if (up == dw)
-//		{
-//			System.out.println("Gene " + gene.getId() + " is equally altered (up: " + up +
-//				", dw: " + dw + "). Choosing down");
-//		}
-
-		Change c = dw < up ? Change.ACTIVATING : Change.INHIBITING;
-
-		for (int i = 0; i < gene.getSize(); i++)
-		{
-			gene.get(Alteration.GENOMIC)[i] = gene.get(Alteration.MUTATION)[i].isAltered() ||
-				gene.get(Alteration.COPY_NUMBER)[i] == c ? c : Change.NO_CHANGE;
-		}
-
-		this.ch = null;
-	}
-
-	public boolean isActivated()
-	{
-		int cnAc = 0;
-		int cnIn = 0;
-
-		for (Change ch : gene.get(Alteration.COPY_NUMBER))
-		{
-			if (ch == Change.ACTIVATING) cnAc++;
-			else if (ch == Change.INHIBITING) cnIn++;
-		}
-
-		if (cnAc != cnIn) return cnAc > cnIn;
-
-		cnIn = 0;
-
-		for (Change ch : gene.get(Alteration.MUTATION))
-		{
-			if (ch == Change.INHIBITING) cnIn++;
-		}
-		return cnIn * 10 < size();
-	}
-
 	public String getPrint(List<Integer> order)
 	{
 		assert new HashSet<Integer>(order).size() == order.size();
 
-		boolean[] ch = getBooleanChanges();
+		String[] let = getLetterChanges();
+
+		assert getBooleanChanges().length == let.length;
+
 		StringBuilder buf = new StringBuilder();
 		for (Integer o : order)
 		{
-			buf.append(ch[o] ? "x" : ".");
+			buf.append(let[o]);
 		}
-		for (int i = 0; i < ch.length; i++)
+		for (int i = 0; i < let.length; i++)
 		{
 			if (!order.contains(i))
-				buf.append(ch[i] ? "x" : ".");
+				buf.append(let[i]);
 		}
-
 
 		buf.append("  ").append(getId());
 		return buf.toString();
 	}
 
+	private String[] getLetterChanges()
+	{
+		Change[] c = getChanges();
+		Change[] mut = gene.get(Alteration.MUTATION);
+		Change[] cna = gene.get(Alteration.COPY_NUMBER);
+
+		String[] let = new String[c.length];
+
+		for (int i = 0; i < c.length; i++)
+		{
+			let[i] = c[i].isAltered() ? mut[i].isAltered() ? "M" :
+				cna[i] == Change.ACTIVATING ? "A" : cna[i] == Change.INHIBITING ? "D" :
+					"." : ".";
+		}
+
+		return crop(let);
+	}
 
 	public void shuffle()
 	{
@@ -289,9 +294,57 @@ public class GeneAlt implements Cloneable
 		neg = null;
 	}
 
+	public void unshuffleSticky()
+	{
+		shuf = null;
+		ch = null;
+		neg = null;
+		randScores = randScoresSave;
+	}
+
+	public void shuffleSticky()
+	{
+		shuffle();
+		shuf = new boolean[ch.length];
+		System.arraycopy(ch, 0, shuf, 0, ch.length);
+		randScoresSave = randScores;
+		randScores = null;
+	}
+
 	@Override
 	public String toString()
 	{
 		return getId();
+	}
+
+	/**
+	 * Random permutation scores sorted ascending. Smaller score is more significant.
+	 * @param randScores
+	 */
+	public void setRandScores(double[] randScores)
+	{
+		this.randScores = randScores;
+	}
+
+	public double getPvalOfScore(double score)
+	{
+		int i = 0;
+		for (double randScore : randScores)
+		{
+			if (randScore <= score) i++;
+			else break;
+		}
+
+		return i / (double) randScores.length;
+	}
+
+	public double getMinPval()
+	{
+		return getPvalOfScore(randScores[0]);
+	}
+
+	public GeneAlt copy()
+	{
+		return new GeneAlt(gene, alt, hyper);
 	}
 }
