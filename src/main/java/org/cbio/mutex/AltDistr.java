@@ -32,7 +32,7 @@ public class AltDistr
 			int cnt = 0;
 			for (AlterationPack gene : genes)
 			{
-				if (gene.get(Alteration.ANY)[i].isAltered()) cnt++;
+				if (gene.get(Alteration.GENOMIC)[i].isAltered()) cnt++;
 			}
 			h.count(cnt);
 			sample2Cnt.put(i, cnt);
@@ -64,6 +64,7 @@ public class AltDistr
 			else break;
 		}
 
+		System.out.println("original sample size: " + outlier.length);
 		int ro = ArrayUtil.countValue(outlier, true);
 		System.out.println("Right outlier: " + ro);
 
@@ -111,6 +112,8 @@ public class AltDistr
 	{
 		double mean = Summary.mean(v);
 		double sd = Summary.stdev(v);
+
+		if (sd == 0) return true;
 
 		NormalDistribution dist = new NormalDistribution(mean, sd);
 		double p = 1 - dist.cumulativeProbability(v[v.length - 1]);

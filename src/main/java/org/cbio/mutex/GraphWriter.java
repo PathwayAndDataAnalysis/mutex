@@ -1,16 +1,12 @@
 package org.cbio.mutex;
 
+import org.biopax.paxtools.pattern.miner.SIFEnum;
 import org.cbio.causality.analysis.SIFLinker;
-import org.cbio.causality.model.Alteration;
-import org.cbio.causality.model.Change;
-import org.cbio.causality.util.Overlap;
-import org.cbio.causality.util.Summary;
-import org.cbio.mutex.mutation.RandomAltGenerator;
+import org.cbio.causality.util.FormatUtil;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.text.DecimalFormat;
 import java.util.*;
 
 /**
@@ -19,274 +15,196 @@ import java.util.*;
  */
 public class GraphWriter
 {
-	/**
-	 * Formatter for object values in the graph.
-	 */
-	static final DecimalFormat fmt = new DecimalFormat("0.00");
+	private static final List<String> H_COLS = Arrays.asList("255 255 205", "255 205 255",
+		"205 255 255", "205 205 255", "255 205 205", "205 255 205");
 
 	/**
 	 * Writes the graph data for the given groups and the given network provider to the given
 	 * stream.
 	 * @param groups groups of genes
 	 * @param linker network helper
-	 * @param os stream to write
 	 */
-	public static void write(List<Group> groups, double coocThr, SIFLinker linker, OutputStream os,
-		String graphName, boolean groupCoocCliques) throws IOException
+	public static void write(List<Group> groups, Map<String, GeneAlt> geneMap,
+		SIFLinker linker, String dir, String graphName, SubtypeAligner sa) throws IOException
 	{
+		Set<String> to = getTargetOnly(groups);
+		OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(dir + graphName + ".sif"));
+
+		Map<String, String> node2color = new HashMap<String, String>();
+		Map<String, String> node2tooltip = new HashMap<String, String>();
+
 		String s = "type:graph\ttext:" + graphName;
-		Set<String> nodes = new HashSet<String>();
-		Set<String> pairs = new HashSet<String>();
+//		Set<String> nodes = new HashSet<String>();
+
+		Map<String, Set<String>> name2id = new HashMap<String, Set<String>>();
 
 		for (Group group : groups)
 		{
-//			if (group.size() > 2 || !hasLinkBetween(group, linker))
+			// write group id and members
+
+			String groupID = group.getID();
+			s += "\ntype:compound\tid:" + groupID + "\tmembers:";
+
+			for (String mem : group.getGeneNamesInString().replaceAll(":", " ").split(" "))
 			{
-				// write group id and members
-
-				s += "\ntype:compound\tid:" + group.getID() + "\tmembers:";
-
-				s += group.getGeneNamesInString().replaceAll(" ", ":");
-
-//				s += "\ttext:" + "cov: " + fmt.format(group.calcCoverage());
-				s += "\ttext:" + group.getTargets().toString().replaceAll("\\[","").
-					replaceAll("\\]","").replaceAll(",","");
-				s += "\ttextcolor:0 0 0\tbgcolor:255 255 255";
+				s += mem + groupID + ":";
 			}
 
+			s += "\ttext:" + (int) Math.round(group.calcCoverage() * 100) + "%";
+			s += "\ttextcolor:0 0 0\tbgcolor:255 255 255";
+
 			// write member nodes
-			for (GeneAlt gene : group.getAllGenes())
+			for (GeneAlt gene : group.members)
 			{
-				if (!nodes.contains(gene.getId()))
+				s += writeNodeData(gene, groupID, name2id,
+					group.seedGenes.contains(gene), node2color, node2tooltip);
+			}
+
+			List<String> memNames = group.getGeneNames();
+			List<String> tarNames = new ArrayList<String>();
+
+			// write target nodes
+			for (String tarName : group.getTargets())
+			{
+				if (!memNames.contains(tarName))
 				{
-					s += "\ntype:node\tid:" + gene.getId() + "\ttext:" + gene.getId();
-					double rat = gene.getAlteredRatio();
-					int v = 255 - (int) (rat * 255);
+					tarNames.add(tarName);
+				}
+				// limit targets to two
+				if (tarNames.size() == 2) break;
+			}
 
-					boolean activating = gene.isActivated();
-
-					String color = activating ?
-						"255 " + v + " " + v : v + " " + v + " 255";
-					s += "\tbgcolor:" + color + "\ttooltip:" + fmt.format(rat);
-					nodes.add(gene.getId());
+			for (String tarName : tarNames)
+			{
+				if (geneMap.containsKey(tarName))
+					s += writeNodeData(geneMap.get(tarName), groupID, name2id, false, node2color,
+						node2tooltip);
+				else
+				{
+					s += writeNodeData(tarName, groupID);
+					to.add(tarName);
 				}
 			}
 
 			// write relations
-			Set<String> genes = new HashSet<String>(group.getGeneNames());
+			Set<String> genes = new HashSet<String>(memNames);
+			genes.addAll(tarNames);
+
 			List<String> relations = linker.linkProgressive(genes, genes, 0);
 			for (String rel : relations)
 			{
-				String pairHash = rel.substring(0, rel.indexOf("\t")) +
-					rel.substring(rel.lastIndexOf("\t"));
+				String[] tok = rel.split("\t");
 
-				if (!pairs.contains(pairHash))
+				String srcID = tok[0] + groupID;
+				String trgID = tok[2] + groupID;
+				String edgeID = tok[0] + tok[2] + groupID;
+
+				s+= "\ntype:edge\tid:" + edgeID + "\tsource:" + srcID +
+					"\ttarget:" + trgID + "\tarrow:Target";
+
+				if (tok[1].equals(SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag()))
 				{
-					String[] tok = rel.split("\t");
-					GeneAlt src = group.getGene(tok[0]);
-					GeneAlt trg = group.getGene(tok[2]);
-
-					s+= "\ntype:edge\tid:" + rel.replaceAll("\t", " ") + "\tsource:" + src.getId() +
-						"\ttarget:" + trg.getId() + "\tarrow:Target";
-
-					double pv = Overlap.calcMutexPval(src.getBooleanChanges(), trg.getBooleanChanges());
-
-					int v = (int) Math.max(0, 255 - (-Math.log(pv) * 55.4));
-					String color = v + " " + v + " " + v;
-					s += "\tlinecolor:" + color;
-
-					pairs.add(pairHash);
+					s += "\tlinecolor:50 100 150";
 				}
-			}
-		}
-
-		// Put the co-occurrence relations
-		Set<GeneAlt> set = new HashSet<GeneAlt>();
-		Collections.reverse(groups);
-		for (Group group : groups)
-		{
-			set.addAll(group.getAllGenes());
-		}
-
-		List<Set<GeneAlt>> cliques = null;
-
-		if (groupCoocCliques)
-		{
-			cliques = determineCliques(set, coocThr);
-			Map<Set<GeneAlt>, String> cli2id = new HashMap<Set<GeneAlt>, String>();
-
-			int i = 0;
-			String idText = "cocNode";
-			for (Set<GeneAlt> cli : cliques)
-			{
-				String id = idText + i++;
-				s += "\ntype:node\tid:" + id + "\ttext:";
-
-				s += "\tbgcolor:" + "255 255 255" + "\ttooltip:";
-				cli2id.put(cli, id);
-			}
-
-			for (Set<GeneAlt> clique : cliques)
-			{
-				for (GeneAlt gene : clique)
+				else
 				{
-					double pv = calcAveragePVal(clique, gene);
-
-					String cliID = cli2id.get(clique);
-					s += "\ntype:edge\tid:" + gene.getId() + " co-occur " + cliID;
-					s += "\tsource:" + gene.getId() + "\ttarget:" + cliID;
-
-					int v = (int) Math.max(0, 255 - (-Math.log(pv) * 10));
-					String color = v + " " + v + " " + v;
-					s += "\tlinecolor:" + color + "\tstyle:Dashed";
-
-					s += "\tarrow:None";
+					s += "\tlinecolor:50 150 50\tstyle:Dashed";
 				}
+				writer.write(rel + "\n");
 			}
 		}
 
-		for (GeneAlt gene1 : set)
-		{
-			for (GeneAlt gene2 : set)
-			{
-				if (gene1.getId().compareTo(gene2.getId()) > 0)
-				{
-					if (groupCoocCliques && isPartOfAClique(gene1, gene2, cliques)) continue;
-
-					double pv = Overlap.calcCoocPval(
-						gene1.getBooleanChanges(), gene2.getBooleanChanges());
-
-					if (pv < coocThr)
-					{
-						s += "\ntype:edge\tid:" + gene1.getId() + " co-occur " + gene2.getId();
-						s += "\tsource:" + gene1.getId() + "\ttarget:" + gene2.getId();
-
-						int v = (int) Math.max(0, 255 - (-Math.log(pv) * 10));
-						String color = v + " " + v + " " + v;
-						s += "\tlinecolor:" + color + "\tstyle:Dashed";
-
-						s += "\tarrow:None";
-					}
-				}
-			}
-		}
-		Collections.reverse(groups);
+		writer.close();
 
 		// write the graph to the stream
-		OutputStreamWriter writer = new OutputStreamWriter(os);
+		writer = new OutputStreamWriter(new FileOutputStream(dir + graphName + ".cus"));
 		writer.write(s);
+		writer.close();
+
+		writer = new OutputStreamWriter(new FileOutputStream(dir + graphName + ".format"));
+		writer.write("node\tall-nodes\tcolor\t255 255 255\n");
+		for (String id : node2color.keySet())
+		{
+			writer.write("node\t" + id + "\tcolor\t" + node2color.get(id) + "\n");
+			writer.write("node\t" + id + "\ttooltip\t" + node2tooltip.get(id) + "\n");
+
+			String subtype = sa.getMostEnrichedSubtype(id, 0.05);
+			if (subtype != null)
+			{
+				writer.write("node\t" + id + "\thighlight\ton\n");
+				writer.write("node\t" + id + "\thighlightcolor\t" +
+					H_COLS.get(sa.getAllSubtypes().indexOf(subtype)) + "\n");
+			}
+		}
+		for (String target : to)
+		{
+			writer.write("node\t" + target + "\tbordercolor\t255 255 255\n");
+		}
 		writer.close();
 	}
 
-	private static boolean hasLinkBetween(Group group, SIFLinker linker)
+	private static String writeNodeData(GeneAlt gene, String groupID,
+		Map<String, Set<String>> name2id, boolean seed, Map<String, String> node2color,
+		Map<String, String> node2tooltip)
 	{
-		Set<String> genes = new HashSet<String>(group.getGeneNames());
-		return !linker.linkProgressive(genes, genes, 0).isEmpty();
+		String nodeID = gene.getId() + groupID;
+		String s = "\ntype:node\tid:" + nodeID + "\ttext:" + gene.getId();
+		double rat = gene.getAlteredRatio();
+		int v = 255 - (int) (rat * 255);
+
+//		boolean activating = gene.isActivated();
+		boolean activating = true;
+
+		String color = activating ?
+			"255 " + v + " " + v : v + " " + v + " 255";
+		s += "\tbgcolor:" + color + "\ttooltip:" + (int) Math.round(rat * 100) + "%";
+
+		if (!node2color.containsKey(gene.getId()))
+		{
+			node2color.put(gene.getId(), color);
+			node2tooltip.put(gene.getId(), FormatUtil.roundToSignificantDigits(rat, 2) + "");
+		}
+
+		if (seed)
+		{
+			s += "\tbordercolor:150 0 0";
+		}
+
+		if (!name2id.containsKey(gene.getId()))
+			name2id.put(gene.getId(), new HashSet<String>());
+
+		name2id.get(gene.getId()).add(nodeID);
+		return s;
 	}
 
-	private static List<Set<GeneAlt>> determineCliques(Set<GeneAlt> genes, double coocThr)
+	private static String writeNodeData(String name, String groupID)
 	{
-		List<Set<GeneAlt>> list = new ArrayList<Set<GeneAlt>>();
+		String nodeID = name + groupID;
+		String s = "\ntype:node\tid:" + nodeID + "\ttext:" + name;
 
-		for (GeneAlt gene1 : genes)
+		s += "\tbgcolor:255 255 255";
+
+		return s;
+	}
+
+	private static Set<String> getTargetOnly(List<Group> groups)
+	{
+		Set<String> only = new HashSet<String>();
+		Set<String> mems = new HashSet<String>();
+		for (Group group : groups)
 		{
-			for (GeneAlt gene2 : genes)
+			for (GeneAlt member : group.members)
 			{
-				if (gene1 == gene2) continue;
-
-				double pv = Overlap.calcCoocPval(
-					gene1.getBooleanChanges(), gene2.getBooleanChanges());
-
-				if (pv < coocThr)
-				{
-					Set<GeneAlt> set = new HashSet<GeneAlt>();
-					set.add(gene1);
-					set.add(gene2);
-					list.add(set);
-				}
+				mems.add(member.getId());
 			}
 		}
-
-		for (GeneAlt gene : genes)
+		for (Group group : groups)
 		{
-			for (Set<GeneAlt> set : list)
+			for (String target : group.targets)
 			{
-				boolean allSignif = true;
-
-				for (GeneAlt member : set)
-				{
-					double pv = Overlap.calcCoocPval(
-						gene.getBooleanChanges(), member.getBooleanChanges());
-
-					if (pv > coocThr)
-					{
-						allSignif = false;
-						break;
-					}
-				}
-
-				if (allSignif) set.add(gene);
+				if (!mems.contains(target)) only.add(target);
 			}
 		}
-
-		List<Set<GeneAlt>> cliques = new ArrayList<Set<GeneAlt>>();
-
-		for (Set<GeneAlt> set : list)
-		{
-			if (set.size() > 2 && !alreadyContains(cliques, set)) cliques.add(set);
-		}
-		return cliques;
-	}
-
-	private static boolean alreadyContains(List<Set<GeneAlt>> found, Set<GeneAlt> cand)
-	{
-		for (Set<GeneAlt> set : found)
-		{
-			if (set.size() >= cand.size() && set.containsAll(cand)) return true;
-		}
-		return false;
-	}
-
-	private static double calcAveragePVal(Set<GeneAlt> set)
-	{
-		double[] pv = new double[set.size() * (set.size() - 1) / 2];
-
-		int i = 0;
-		for (GeneAlt g1 : set)
-		{
-			for (GeneAlt g2 : set)
-			{
-				if (g1.getId().compareTo(g2.getId()) < 0)
-				{
-					pv[i++] = Overlap.calcCoocPval(g1.getBooleanChanges(), g2.getBooleanChanges());
-				}
-			}
-		}
-		return Summary.geometricMean(pv);
-	}
-
-	private static double calcAveragePVal(Set<GeneAlt> set, GeneAlt gene)
-	{
-		assert set.contains(gene);
-
-		double[] pv = new double[set.size() - 1];
-
-		int i = 0;
-		for (GeneAlt g1 : set)
-		{
-			if (g1.equals(gene)) continue;
-
-			pv[i++] = Overlap.calcCoocPval(g1.getBooleanChanges(), gene.getBooleanChanges());
-		}
-		return Summary.geometricMean(pv);
-	}
-
-	private static boolean isPartOfAClique(GeneAlt g1, GeneAlt g2, List<Set<GeneAlt>> cliques)
-	{
-		for (Set<GeneAlt> clique : cliques)
-		{
-			if (clique.contains(g1) && clique.contains(g2)) return true;
-		}
-		return false;
+		return only;
 	}
 }

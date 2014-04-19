@@ -2,31 +2,34 @@ package org.cbio.mutex;
 
 import org.cbio.causality.data.portal.BroadAccessor;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author Ozgun Babur
  */
 public class GeneFilterer
 {
-	public static void filterToMutsigAndGistic(Set<String> symbols, PortalDataset dataset)
+	public static void filterToMutsigAndGistic(Set<String> symbols, PortalDataset dataset,
+		double fdrThr)
 	{
 		String study = dataset.caseList.substring(0, dataset.caseList.indexOf("_")).toUpperCase();
-		Set<String> genes = BroadAccessor.getMutsigGenes(study, 0.5);
-		genes.addAll(BroadAccessor.getGisticGenes(study, 0.5));
-		symbols.retainAll(genes);
+		Set<String> genes = BroadAccessor.getMutsigGenes(study, fdrThr);
+		genes.addAll(BroadAccessor.getExpressionVerifiedGistic(study, fdrThr));
 
+//		Set<String> check = new HashSet<String>(Arrays.asList("RPS6KB1 TLK2".split(", ")));
+//		check.removeAll(genes);
+//		System.out.println(check);
+//		if (true) System.exit(0);
+
+		symbols.retainAll(genes);
 	}
 
-	public static Map<String, Set<String>> getGisticSets(PortalDataset dataset)
+	public static Map<String, Set<String>> getGisticSets(PortalDataset dataset, double fdrThr)
 	{
 		String study = dataset.caseList.substring(0, dataset.caseList.indexOf("_")).toUpperCase();
 		List<Set<String>> sets = BroadAccessor.getGisticGeneSets(study, 0.5);
 
-		Set<String> mutsig = getMutsig(dataset);
+		Set<String> mutsig = getMutsig(dataset, fdrThr);
 
 		Map<String, Set<String>> map = new HashMap<String, Set<String>>();
 
@@ -38,13 +41,21 @@ public class GeneFilterer
 				map.put(s, set);
 			}
 		}
+
 		return map;
 	}
 
-	public static Set<String> getMutsig(PortalDataset dataset)
+	public static Set<String> getMutsig(PortalDataset dataset, double fdrThr)
 	{
 		String study = dataset.caseList.substring(0, dataset.caseList.indexOf("_")).toUpperCase();
-		Set<String> genes = BroadAccessor.getMutsigGenes(study, 0.5);
+		Set<String> genes = BroadAccessor.getMutsigGenes(study, fdrThr);
+		return genes;
+	}
+
+	public static List<String> getGisticExpVerified(PortalDataset dataset, double fdrThr)
+	{
+		String study = dataset.caseList.substring(0, dataset.caseList.indexOf("_")).toUpperCase();
+		List<String> genes = BroadAccessor.getExpressionVerifiedGistic(study, fdrThr);
 		return genes;
 	}
 }
