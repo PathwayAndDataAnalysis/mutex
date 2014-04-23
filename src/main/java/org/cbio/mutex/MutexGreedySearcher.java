@@ -52,14 +52,14 @@ public class MutexGreedySearcher
 		AlterationPack sampleGene = packs.get("TP53");
 		if (sampleGene == null) sampleGene = packs.get("PIK3CA");
 		if (sampleGene == null) sampleGene = packs.get("BRAF");
-		boolean[] missing = getSamplesWithMissingData(sampleGene);
-		int mis = ArrayUtil.countValue(missing, true);
-		System.out.println("Samples missing cn or exp = " + mis);
+//		boolean[] missing = getSamplesWithMissingData(sampleGene);
+//		int mis = ArrayUtil.countValue(missing, true);
+//		System.out.println("Samples missing cn or exp = " + mis);
 
 		hyper = removeHypermutated ? AltDistr.getOutlierAltered(packs.values()) : null;
 
-		if (hyper != null) ArrayUtil.ORWith(hyper, missing);
-		else if (mis > 0) hyper = missing;
+//		if (hyper != null) ArrayUtil.ORWith(hyper, missing);
+//		else if (mis > 0) hyper = missing;
 
 		System.out.println("unfiltered genes size = " + packs.size());
 		System.out.println("alterationThreshold = " + alterationThreshold);
