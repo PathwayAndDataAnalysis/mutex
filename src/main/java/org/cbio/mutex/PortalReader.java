@@ -32,26 +32,11 @@ public class PortalReader
 		expMan = getExpDataMan(data, accessor);
 		cnVerifier = new CNVerifier(expMan, 0.05);
 
-		// cBio portal configuration
-
-//		String filename = data.study + ".txt";
-//
-//		if (new File(filename).exists())
-//		{
-//			return AlterationPack.readFromFile(filename);
-//		}
-//		else if (getClass().getResourceAsStream(filename) != null)
-//		{
-//			return AlterationPack.readFromFile(new InputStreamReader(getClass().getResourceAsStream(
-//				filename)));
-//		}
-
 		System.out.println("syms.size() = " + syms.size());
 		long time = System.currentTimeMillis();
 
 		Map<String, AlterationPack> map = new HashMap<String, AlterationPack>();
 
-//		int[] cnts = null;
 		List<String> sorted = new ArrayList<String>(syms);
 		Collections.sort(sorted);
 		for (String sym : sorted)
@@ -66,37 +51,15 @@ public class PortalReader
 				removeMinorCopyNumberAlts(alt);
 				alt.complete(Alteration.GENOMIC);
 
-				if (alt.isAltered(Alteration.GENOMIC)) map.put(sym, alt);
-
-//				if (cnts == null) cnts = new int[alt.getSize()];
-//				for (int i = 0; i < alt.getSize(); i++)
-//				{
-//					if (alt.getChange(Alteration.GENOMIC, i).isAltered()) cnts[i]++;
-//				}
+				if (alt.isAltered(Alteration.GENOMIC))
+				{
+					map.put(sym, alt);
+				}
 			}
 		}
 		System.out.println("map.size() = " + map.size());
 		time = System.currentTimeMillis() - time;
 		System.out.println("read in " + (time / 1000D) + " seconds");
-
-//		AlterationPack.writeToFile(map, filename);
-
-//		System.out.println("Median altered gene count = " + Summary.median(cnts));
-//		Histogram h = new Histogram(50);
-//		h.setBorderAtZero(true);
-//		for (int i = 0; i < cnts.length; i++)
-//		{
-//			h.count(cnts[i]);
-//		}
-//		h.print();
-
-		Histogram h = new Histogram(1);
-		h.setBorderAtZero(true);
-		for (AlterationPack pack : map.values())
-		{
-			h.count(Math.log(pack.getAlteredRatio(Alteration.GENOMIC)) / Math.log(2));
-		}
-		h.print();
 
 		return map;
 	}

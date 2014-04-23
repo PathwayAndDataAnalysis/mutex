@@ -38,6 +38,11 @@ public class GeneAlt implements Cloneable, Serializable
 	private boolean[] ch;
 
 	/**
+	 * Count of altered samples.
+	 */
+	private int altCnt;
+
+	/**
 	 * Negative of changes array.
 	 */
 	private boolean[] neg;
@@ -126,9 +131,16 @@ public class GeneAlt implements Cloneable, Serializable
 				ch = new boolean[shuf.length];
 				System.arraycopy(shuf, 0, ch, 0, ch.length);
 			}
+			altCnt = ArrayUtil.countValue(ch, true);
 		}
 
 		return ch;
+	}
+
+	public int getAltCnt()
+	{
+		getBooleanChanges();
+		return altCnt;
 	}
 
 	private boolean[] crop(boolean[] ch)

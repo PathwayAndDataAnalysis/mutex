@@ -1,5 +1,6 @@
 package org.cbio.mutex;
 
+import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
 import org.biopax.paxtools.pattern.miner.SIFEnum;
 import org.cbio.causality.analysis.Graph;
 import org.cbio.causality.analysis.SIFLinker;
@@ -9,7 +10,11 @@ import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.network.PathwayCommons;
 import org.cbio.causality.network.SPIKE;
 import org.cbio.causality.network.SignaLink;
+import org.cbio.causality.util.Histogram;
+import org.cbio.causality.util.Histogram2D;
+import org.cbio.causality.util.Summary;
 
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
@@ -20,7 +25,7 @@ import java.util.*;
  */
 public class Main
 {
-	public static final PortalDataset data = PortalDataset.UCEC;
+	public static final PortalDataset data = PortalDataset.BRCA;
 	public static final double MIN_ALTERATION_THR = 0.03;
 	public static final double FDR_THR = 0.05;
 	public static final int MAX_GROUP_SIZE = 7;
@@ -54,8 +59,22 @@ public class Main
 		graph.merge(graphTR);
 		Set<String> symbols = decideSymbols(graph);
 
+//		Set<String> symbols = graph.getSymbols();
+//		SimulatedDataGenerator sim = new SimulatedDataGenerator(graph);
+//		sim.generate();
+
 		// load the alteration data
-		Map<String, AlterationPack> genesMap = readPortal(symbols);
+		Map<String, AlterationPack> genesMap;
+		if (data == PortalDataset.SIMUL)
+		{
+			genesMap = SimulatedDataGenerator.loadSimData(symbols);
+		}
+		else
+		{
+			genesMap = readPortal(symbols);
+		}
+
+//		printDatasetCharacteristics(genesMap);
 
 		MutexGreedySearcher searcher = new MutexGreedySearcher(
 			graph, genesMap, MIN_ALTERATION_THR, REMOVE_HYPERMUTATED_OUTLIERS);
@@ -99,10 +118,11 @@ public class Main
 		}
 
 		System.out.println();
-		printAnnotations(getGenes(groups, genesMap));
+		if (data == PortalDataset.SIMUL) SimulatedDataGenerator.evaluateSuccess(groups);
+		else printAnnotations(getGenes(groups, genesMap));
 	}
 
-	private static Set<String> decideSymbols(Graph graph)
+	private static Set<String> decideSymbols(Graph graph) throws FileNotFoundException
 	{
 		// Filter gens to mutsig and gistic
 		Set<String> symbols = graph.getSymbols();
@@ -117,7 +137,13 @@ public class Main
 		if (CROP_GRAPH_TO_MUTSIG_GISTIC_NEIGH)
 		{
 			Set<String> syms = new HashSet<String>(symbols);
-			GeneFilterer.filterToMutsigAndGistic(syms, data, 0.05);
+
+			if (data == PortalDataset.SIMUL)
+			{
+				syms = SimulatedDataGenerator.getMutsig();
+			}
+			else GeneFilterer.filterToMutsigAndGistic(syms, data, 0.05);
+
 			Set<String> neighbors = graph.getNeighbors(syms);
 			Set<String> downstream = graph.getDownstream(syms);
 			Set<String> upOfDown = graph.getUpstream(downstream);
@@ -244,5 +270,66 @@ public class Main
 		System.out.println(withOtherCancer);
 		System.out.println("\nNot associated with any cancer: " + notAssoc.size());
 		System.out.println(notAssoc);
+	}
+
+	public static void printDatasetCharacteristics(Map<String, AlterationPack> genesMap)
+	{
+		int sampleSize = genesMap.values().iterator().next().getSize();
+		int geneSize = genesMap.size();
+		double log2 = Math.log(2);
+
+		int[] cnt = new int[sampleSize];
+		for (AlterationPack pack : genesMap.values())
+		{
+			for (int i = 0; i < sampleSize; i++)
+			{
+				if (pack.get(Alteration.GENOMIC)[i].isAltered()) cnt[i]++;
+			}
+		}
+
+		for (int i = 0; i < cnt.length; i++)
+		{
+			if (cnt[i] == 0) cnt[i]++;
+		}
+
+		double[] sampleCov = new double[sampleSize];
+		List<Double> geneCov = new ArrayList<Double>();
+
+		double range = 0.5;
+		Histogram h1 = new Histogram(range);
+		h1.setBorderAtZero(true);
+		for (int i = 0; i < sampleSize; i++)
+		{
+			double rat = Math.log(cnt[i] / (double) geneSize) / log2;
+			h1.count(rat);
+			sampleCov[i] = rat;
+		}
+		System.out.println("Sample coverage:");
+		h1.print();
+
+		System.out.println("Summary.mean(sampleCov) = " + Summary.mean(sampleCov));
+		System.out.println("Summary.stdev(sampleCov) = " + Summary.stdev(sampleCov));
+
+		Histogram h2 = new Histogram(range);
+		h2.setBorderAtZero(true);
+		for (AlterationPack pack : genesMap.values())
+		{
+			if (!pack.isAltered()) continue;
+			double rat = Math.log(pack.getAlteredRatio(Alteration.GENOMIC)) / log2;
+			h2.count(rat);
+			geneCov.add(rat);
+		}
+		System.out.println("Gene coverage:");
+		h2.print();
+
+		double[] v = new double[geneCov.size()];
+		for (int i = 0; i < v.length; i++)
+		{
+			v[i] = geneCov.get(i);
+		}
+		System.out.println("Summary.mean(geneCov) = " + Summary.mean(v));
+		System.out.println("Summary.stdev(geneCov) = " + Summary.stdev(v));
+
+		System.exit(0);
 	}
 }

@@ -76,11 +76,13 @@ public class Group implements Serializable
 
 		if (candidate == null)
 		{
+			int mergeCnt = ArrayUtil.countValue(merge, true);
+
 			for (GeneAlt member : members)
 			{
 				int ov = ArrayUtil.countValue(overlaps.get(member), true);
-				int a1 = ArrayUtil.countValue(member.getBooleanChanges(), true);
-				int a2 = ArrayUtil.countValue(merge, true) - a1 + ov;
+				int a1 = member.getAltCnt();
+				int a2 = mergeCnt - a1 + ov;
 
 				double pval = Overlap.calcMutexPval(merge.length, ov, a1, a2);
 				pvals.put(member.getId(), pval);
@@ -94,7 +96,7 @@ public class Group implements Serializable
 			for (GeneAlt member : members)
 			{
 				int ov = countOverlapWithCandidate(overlaps.get(member), member.getBooleanChanges(), cch);
-				int a1 = ArrayUtil.countValue(member.getBooleanChanges(), true);
+				int a1 = member.getAltCnt();
 				int a2 = a2_pre - a1 + ov;
 
 				double pval = Overlap.calcMutexPval(merge.length, ov, a1, a2);
@@ -103,26 +105,6 @@ public class Group implements Serializable
 
 			pvals.put(candidate.getId(), Overlap.calcMutexPval(cch, merge));
 		}
-
-//		if (members.size() == 2)
-//		{
-//			double p = Overlap.calcMutexPval(
-//				members.get(0).getBooleanChanges(),
-//				members.get(1).getBooleanChanges());
-//
-//			pvals.put(members.get(0).getId(), p);
-//			pvals.put(members.get(1).getId(), p);
-//		}
-//		else
-//		{
-//			for (int i = 0; i < members.size(); i++)
-//			{
-//				boolean[] others = getMergedAlterations(i);
-//
-//				pvals.put(members.get(i).getId(), Overlap.calcMutexPval(
-//					members.get(i).getBooleanChanges(), others));
-//			}
-//		}
 
 		return pvals;
 	}
