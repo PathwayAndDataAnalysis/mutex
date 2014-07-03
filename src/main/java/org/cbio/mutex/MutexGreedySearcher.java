@@ -7,17 +7,14 @@ import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.model.Change;
 import org.cbio.causality.util.*;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 /**
  * Searcher class for mutex groups on the network.
  * @author Ozgun Babur
  */
-public class MutexGreedySearcher
+public class MutexGreedySearcher implements Serializable
 {
 	/**
 	 * Gene alterations.
@@ -36,6 +33,16 @@ public class MutexGreedySearcher
 
 	private boolean[] hyper;
 
+	private static final long serialVersionUID = 5998727214775118493L;
+
+	/**
+	 * A null distribution is sampled until the number of values smaller than the current compared
+	 * value is equal to this number, or up to iteration limit.
+	 */
+	private static final int LOW_ACCURACY = 10;
+	private static final int HIGH_ACCURACY = 100;
+	private static final double ACCURACY_SWITCH = 0.2;
+
 	/**
 	 * Constructor with network and alterations.
 	 * @param graph the network helper
@@ -49,9 +56,9 @@ public class MutexGreedySearcher
 		this.genes = new HashMap<String, GeneAlt>();
 		this.omitted = new HashMap<String, GeneAlt>();
 
-		AlterationPack sampleGene = packs.get("TP53");
-		if (sampleGene == null) sampleGene = packs.get("PIK3CA");
-		if (sampleGene == null) sampleGene = packs.get("BRAF");
+//		AlterationPack sampleGene = packs.get("TP53");
+//		if (sampleGene == null) sampleGene = packs.get("PIK3CA");
+//		if (sampleGene == null) sampleGene = packs.get("BRAF");
 //		boolean[] missing = getSamplesWithMissingData(sampleGene);
 //		int mis = ArrayUtil.countValue(missing, true);
 //		System.out.println("Samples missing cn or exp = " + mis);
@@ -63,13 +70,13 @@ public class MutexGreedySearcher
 
 		System.out.println("unfiltered genes size = " + packs.size());
 		System.out.println("alterationThreshold = " + alterationThreshold);
+		System.out.println("original sample size = " + packs.values().iterator().next().getSize());
 
 		for (String s : new HashSet<String>(packs.keySet()))
 		{
 			AlterationPack pack = packs.get(s);
 
 			GeneAlt gene = new GeneAlt(pack, Alteration.GENOMIC, hyper);
-//			gene.removeMinorCopyNumberAlts();
 
 			// Filter out genes altered less than the alteration
 			if (gene.getAlteredRatio() >= alterationThreshold)
@@ -82,24 +89,13 @@ public class MutexGreedySearcher
 		// Remove disconnected genes
 		for (String s : new HashSet<String>(this.genes.keySet()))
 		{
-			Set<String> neigh = graph.getNeighbors(s);
-			neigh.retainAll(this.genes.keySet());
-			if (neigh.isEmpty())
+			Set<String> related = graph.getGenesWithCommonDownstream(s);
+			related.retainAll(this.genes.keySet());
+			if (related.isEmpty())
 			{
 				omitted.put(s, this.genes.remove(s));
 			}
 		}
-
-		// DEBUG CODE---------
-//		Set<String> sss = new HashSet<String>(Arrays.asList("PIK3CA", "PIK3R1"));
-//		for (String s : new HashSet<String>(this.genes.keySet()))
-//		{
-//			if (!sss.contains(s))
-//			{
-//				omitted.put(s, this.genes.remove(s));
-//			}
-//		}
-		// DEBUG CODE---------
 
 		System.out.println("filtered disconnected  = " + this.genes.size());
 
@@ -112,6 +108,11 @@ public class MutexGreedySearcher
 	public boolean[] getHyper()
 	{
 		return hyper;
+	}
+
+	public Graph getGraph()
+	{
+		return graph;
 	}
 
 	private static void printCancerAssociationRatio(Set<String> genes)
@@ -157,45 +158,71 @@ public class MutexGreedySearcher
 	}
 
 	/**
+	 * Writes ordered mutex groups in a file.
+	 */
+	public void writeRankedGroups(int maxGroupSize, int randMult1, Map<String, String> labelMap, String filename) throws IOException
+	{
+		System.out.println("\nCalculating seed scores");
+
+		Set<String> seedCandidates = genes.keySet();
+		final Map<String, Double> seedScores = getGenePvals(seedCandidates, maxGroupSize, randMult1);
+
+		List<String> seeds = new ArrayList<String>(seedScores.keySet());
+		Collections.sort(seeds, new Comparator<String>()
+		{
+			@Override
+			public int compare(String o1, String o2)
+			{
+				return seedScores.get(o1).compareTo(seedScores.get(o2));
+			}
+		});
+
+		Map<String, Group> groupMap = getGroupsOfSeeds(seeds, maxGroupSize, -1, randMult1, genes);
+
+		BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
+
+		for (String seed : seeds)
+		{
+			Group group = groupMap.get(seed);
+
+			if (group != null)
+			{
+				String s = "";
+
+				for (String name : group.getGeneNames())
+				{
+					s += (labelMap == null ? name : labelMap.get(name)) + "\t";
+				}
+				writer.write(s.trim() + "\n");
+			}
+		}
+
+		writer.close();
+	}
+
+	/**
 	 * Performs a greedy search for each altered gene, assuming it is the common downstream. At each
 	 * step the qualifying upstream of members are considered for expansion.
 	 * @return significant mutex groups
 	 */
 	public List<Group> search(double fdrThr, int maxGroupSize, int randMult1, int randMult2,
-		String studyName)
+		String studyName, String fileCache) throws IOException
 	{
 		System.out.println("\nCalculating seed scores");
 
 		Set<String> seedCandidates = genes.keySet();
-		Map<String, Double> seedScores = null;
-//		Map<String, Double> seedScores = getGenePvals(seedCandidates, maxGroupSize, randMult1);
+//		Map<String, Double> seedScores = null;
+		Map<String, Double> seedScores = getGenePvals(seedCandidates, maxGroupSize, randMult1);
 		List<Double> randScores = getRandPvals(seedCandidates, maxGroupSize, randMult1, randMult2,
 			studyName);
 
-		//-----------
-//		List<Double> list = new ArrayList<Double>();
-//		for (String key : seedScores.keySet())
-//		{
-//			list.add(seedScores.get(key));
-//		}
-//		DiscretePvalHisto h = new DiscretePvalHisto(list, 0.02);
-//		h.plot();
-		//-----------
+		if (fileCache != null) serialize(fileCache);
 
-//		Map<String, Double> limits = new HashMap<String, Double>();
-//		for (String name : seedCandidates)
-//		{
-//			GeneAlt gene = genes.get(name);
-//			limits.put(gene.getId(), gene.getMinPval());
-//		}
-//
-//		List<String> seeds = FDR.select(seedScores, limits, fdrThr);
 		List<String> seeds = FDR.select(seedScores, fdrThr, randScores, randMult2);
-		double pvThr = findThrPval(seeds, seedScores);
-		System.out.println("pvThr = " + pvThr);
+		double fsThr = findThrScore(seeds, seedScores);
+		System.out.println("Thr final score = " + fsThr);
 
-		Map<String, Group> groupMap = getGroupsOfSeeds(seeds, maxGroupSize, pvThr, randMult1,
-			genes);
+		Map<String, Group> groupMap = getGroupsOfSeeds(seeds, maxGroupSize, fsThr, randMult1, genes);
 
 		System.out.println("selected seed size = " + seeds.size());
 		System.out.println("selected seeds = " + seeds);
@@ -222,27 +249,10 @@ public class MutexGreedySearcher
 		// clean subsets in the result
 		Group.removeSubsets(groups);
 
-		sanity(groups, randMult1);
-
 		return groups;
 	}
 
-	private void sanity(List<Group> groups, int randMult1)
-	{
-		for (Group group : groups)
-		{
-			for (GeneAlt member : group.members)
-			{
-				if (member.randScores.length < randMult1)
-				{
-					System.out.println("Gene null distr has fever values: " + member.getId());
-					System.out.println("size = " + member.randScores.length);
-				}
-			}
-		}
-	}
-
-	private double findThrPval(List<String> seeds, Map<String, Double> seedScores)
+	private double findThrScore(List<String> seeds, Map<String, Double> seedScores)
 	{
 		double max = 0;
 		for (String seed : seeds)
@@ -303,7 +313,7 @@ public class MutexGreedySearcher
 		for (String seed : names)
 		{
 			Group group = getGroupOfSeed(seed, maxGroupSize, -1, randIteration, genes);
-			if (group != null) map.put(seed, group.calcPVal());
+			if (group != null) map.put(seed, group.calcFinalScore());
 			prg.tick();
 		}
 
@@ -323,26 +333,7 @@ public class MutexGreedySearcher
 
 		for (int i = read; i < randIter2; i++)
 		{
-			List<Double> ll = new ArrayList<Double>(genes.size());
-
-			for (GeneAlt gene : genes.values()) gene.shuffleSticky();
-
-			Map<String, Double> map = new HashMap<String, Double>();
-
-			final Progress prg = new Progress(names.size());
-			for (String seed : names)
-			{
-				Group group = getGroupOfSeed(seed, maxGroupSize, -1, randIter1, genes);
-				if (group != null) map.put(seed, group.calcPVal());
-				prg.tick();
-			}
-
-			for (GeneAlt gene : genes.values()) gene.unshuffleSticky();
-
-			for (String s : map.keySet())
-			{
-				ll.add(map.get(s));
-			}
+			List<Double> ll = getRandPvals(names, maxGroupSize, randIter1);
 
 			writeRandomScores(ll, dir + System.currentTimeMillis() + ".txt");
 
@@ -350,6 +341,31 @@ public class MutexGreedySearcher
 		}
 
 		return list;
+	}
+
+	private List<Double> getRandPvals(Set<String> names, int maxGroupSize, int randIter1)
+	{
+		List<Double> ll = new ArrayList<Double>(genes.size());
+
+		for (GeneAlt gene : genes.values()) gene.shuffleSticky();
+
+		Map<String, Double> map = new HashMap<String, Double>();
+
+		final Progress prg = new Progress(names.size());
+		for (String seed : names)
+		{
+			Group group = getGroupOfSeed(seed, maxGroupSize, -1, randIter1, genes);
+			if (group != null) map.put(seed, group.calcFinalScore());
+			prg.tick();
+		}
+
+		for (GeneAlt gene : genes.values()) gene.unshuffleSticky();
+
+		for (String s : map.keySet())
+		{
+			ll.add(map.get(s));
+		}
+		return ll;
 	}
 
 	private void writeRandomScores(List<Double> list, String filename)
@@ -397,69 +413,93 @@ public class MutexGreedySearcher
 		return cnt;
 	}
 
-	private double calcGeneVal(GeneAlt gene, int maxGroupSize, boolean useScore,
-		int randIter, Map<String, GeneAlt> genes)
+//	private double calcGeneVal(GeneAlt gene, int maxGroupSize, int randIter, Map<String, GeneAlt> genes)
+//	{
+//		Group group = new Group(gene);
+//
+//		double bestVal = 1;
+//		boolean expanded;
+//
+//		do
+//		{
+//			Set<GeneAlt> candidates = determineCandidates(group, genes);
+//			expanded = expandGroup(group, candidates, true, -1, maxGroupSize, randIter, genes);
+//			if (expanded)
+//			{
+//				double val = group.calcScore();
+//
+//				if (val < bestVal) bestVal = val;
+//			}
+//		}
+//		while(expanded && group.size() < maxGroupSize);
+//		return bestVal;
+//	}
+
+	private double calcGeneVal(GeneAlt gene, int maxGroupSize, int randIter, Map<String, GeneAlt> genes)
 	{
 		Group group = new Group(gene);
 
-		double bestVal = 1;
 		boolean expanded;
 
 		do
 		{
 			Set<GeneAlt> candidates = determineCandidates(group, genes);
-			expanded = expandGroup(group, candidates, useScore, -1, maxGroupSize, randIter, genes);
-			if (expanded)
-			{
-				double val = useScore ? group.calcScore() : group.calcPVal();
-
-				if (val < bestVal) bestVal = val;
-			}
+			expanded = expandGroup(group, candidates, true, -1, maxGroupSize, randIter, genes);
 		}
 		while(expanded && group.size() < maxGroupSize);
-		return bestVal;
+
+		return group.calcPVals1().get(gene.getId());
 	}
 
 	private void assignNullScoreDistr(GeneAlt gene, int maxGroupSize, int randomIteration,
 		double score, Map<String, GeneAlt> genes)
 	{
-		if (gene.randScores == null)
-		{
-			assignNullScores(gene, maxGroupSize,
-				randomIteration > 100 ? randomIteration / 100 : randomIteration / 50, genes);
-		}
+		if (gene.randScores != null &&
+			(gene.randScores.size() == randomIteration || // already met highest
+				(gene.randScores.size() >= HIGH_ACCURACY && gene.randScores.get(HIGH_ACCURACY - 1) <= score) || // already high accuracy
+				((gene.randScores.get((int) (gene.randScores.size() * ACCURACY_SWITCH)) < score) && // only need low accuracy ..
+					(gene.randScores.size() >= LOW_ACCURACY && gene.randScores.get(LOW_ACCURACY - 1) <= score)))) // but already low accuracy
+			return;
 
-		if (gene.randScores.length < randomIteration / 10 && gene.getPvalOfScore(score) < 0.5)
-		{
-			assignNullScores(gene, maxGroupSize, randomIteration / 10, genes);
-		}
-
-		if (gene.randScores.length < randomIteration && gene.getPvalOfScore(score) < 0.2)
-		{
-			assignNullScores(gene, maxGroupSize, randomIteration, genes);
-		}
-
+		List<Double> dist = getNullDist(gene, maxGroupSize, randomIteration, genes, gene.randScores, score);
+		Collections.sort(dist);
+		gene.setRandScores(dist);
 		gene.unshuffle();
 	}
 
-	private void assignNullScores(GeneAlt gene, int maxGroupSize, int randomIteration, Map<String, GeneAlt> genes)
+	private List<Double> getNullDist(GeneAlt gene, int maxGroupSize, int randomIteration,
+		Map<String, GeneAlt> genes, List<Double> startWith, double forValue)
 	{
-		double[] dist = getNullDist(gene, maxGroupSize, randomIteration, true, genes);
-		Arrays.sort(dist);
-		gene.setRandScores(dist);
-	}
+		int cnt = 0;
+		if (startWith == null) startWith = new ArrayList<Double>();
+		else cnt = countLessThanOrEqual(startWith, forValue);
 
-	private double[] getNullDist(GeneAlt gene, int maxGroupSize, int randomIteration,
-		boolean score, Map<String, GeneAlt> genes)
-	{
-		double[] dist = new double[randomIteration];
+		double p = cnt / (double) startWith.size();
 
-		for (int i = 0; i < randomIteration; i++)
+		while ((cnt < LOW_ACCURACY || (cnt < HIGH_ACCURACY && p < ACCURACY_SWITCH)) &&
+			 startWith.size() < randomIteration)
 		{
 			gene.shuffle();
-			dist[i] = calcGeneVal(gene, maxGroupSize, score, randomIteration, genes);
+			double val = calcGeneVal(gene, maxGroupSize, randomIteration, genes);
+			startWith.add(val);
+			if (val <= forValue)
+			{
+				cnt++;
+				p = cnt / (double) startWith.size();
+			}
 		}
-		return dist;
+		return startWith;
+	}
+
+	private int countLessThanOrEqual(List<Double> randScore, double val)
+	{
+		int cnt  = 0;
+		for (Double v : randScore)
+		{
+			if (v <= val) cnt++;
+			else break;
+		}
+		return cnt;
 	}
 
 	/**
@@ -468,9 +508,11 @@ public class MutexGreedySearcher
 	 * @param group groups to expand
 	 * @return true if expanded
 	 */
-	private boolean expandGroup(Group group, Set<GeneAlt> candidates, boolean useScore, double thr,
-		int maxGroupSize, int randIter, Map<String, GeneAlt> genes)
+	private boolean expandGroup(Group group, Set<GeneAlt> candidates, boolean useInitialScore,
+		double thr, int maxGroupSize, int randIter, Map<String, GeneAlt> genes)
 	{
+		assert thr < 0 || !useInitialScore;
+
 		if (candidates.isEmpty()) return false;
 
 		// Choose the best candidate
@@ -480,7 +522,7 @@ public class MutexGreedySearcher
 
 		double currentScore = group.calcScore();
 
-		if (!useScore)
+		if (!useInitialScore)
 		{
 			for (GeneAlt member : group.members)
 			{
@@ -489,23 +531,23 @@ public class MutexGreedySearcher
 			}
 		}
 
-		double currentVal = useScore ? currentScore : group.calcPVal();
+		double currentVal = useInitialScore ? currentScore : group.calcFinalScore();
 
 		for (GeneAlt cand : candidates)
 		{
-			double futureScore = group.calcFutureScore(cand);
-
-			if (!useScore)
+			if (!useInitialScore)
 			{
-				assignNullScoreDistr(cand, maxGroupSize, randIter, futureScore, genes);
+				double futScore = group.calcFutureScore(cand);
+				assignNullScoreDistr(cand, maxGroupSize, randIter, futScore, genes);
 
 				for (GeneAlt member : group.members)
 				{
-					assignNullScoreDistr(member, maxGroupSize, randIter, futureScore, genes);
+					assignNullScoreDistr(member, maxGroupSize, randIter, futScore, genes);
 				}
 			}
 
-			double val = useScore ? futureScore : group.calcFuturePVal(cand);
+			double val = useInitialScore ?
+				group.calcFutureScore(cand) : group.calcFutureFinalScore(cand);
 
 			if (val < bestVal && (val < currentVal || val <= thr))
 			{
@@ -520,6 +562,10 @@ public class MutexGreedySearcher
 			group.addGene(best);
 
 			return true;
+		}
+		else if (!useInitialScore && currentVal == 1)
+		{
+			return expandGroup(group, candidates, true, -1, maxGroupSize, randIter, genes);
 		}
 		else return false;
 	}
@@ -563,5 +609,42 @@ public class MutexGreedySearcher
 		candNames.removeAll(members);
 		candNames.retainAll(genes.keySet());
 		return candNames;
+	}
+
+	private Set<String> getCandidateNamesX(Group group)
+	{
+		List<String> members = group.getGeneNames();
+		Set<String> comm = new HashSet<String>(genes.keySet());
+		comm.removeAll(members);
+		return comm;
+	}
+
+	public void serialize(String filename) throws IOException
+	{
+		ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filename));
+		out.writeObject(this);
+		out.close();
+		System.out.println("Wrote to file " + filename);
+	}
+
+	public static MutexGreedySearcher deserialize(String filename) throws IOException, ClassNotFoundException
+	{
+		ObjectInputStream in = new ObjectInputStream(new FileInputStream(filename));
+		MutexGreedySearcher s = (MutexGreedySearcher) in.readObject();
+		in.close();
+		return s;
+	}
+
+	public static void main(String[] args) throws IOException, ClassNotFoundException
+	{
+		String study = args[0];
+		MutexGreedySearcher searcher = deserialize("cache-" + study);
+
+		String dir = "scores-" + study;
+		File f = new File(dir);
+		if (!f.exists()) f.mkdirs();
+
+		List<Double> randPvals = searcher.getRandPvals(searcher.getGenes().keySet(), 10, 10000);
+		searcher.writeRandomScores(randPvals, dir + "/randfile-" + System.currentTimeMillis() + "-" + new Random().nextInt(1000) + ".txt");
 	}
 }

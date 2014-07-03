@@ -54,11 +54,11 @@ public class SubtypeAligner
 
 		PortalReader pr = new PortalReader();
 		Map<String,AlterationPack> packs = pr.readAlterations(dataset, genes);
-		hypermuts = AltDistr.getOutlierAltered(packs.values());
+//		hypermuts = AltDistr.getOutlierAltered(packs.values());
 
 		for (AlterationPack pack : packs.values())
 		{
-			this.genes.put(pack.getId(), new GeneAlt(pack, Alteration.GENOMIC, hypermuts));
+			this.genes.put(pack.getId(), new GeneAlt(pack, Alteration.GENOMIC, null));
 		}
 
 		this.portal = PortalReader.getPortalAccessor(dataset);
@@ -212,6 +212,7 @@ public class SubtypeAligner
 
 	private boolean[] trimToNonHyper(boolean[] sub)
 	{
+		if (hypermuts == null) return sub;
 		assert sub.length == hypermuts.length;
 
 		int size = ArrayUtil.countValue(hypermuts, false);

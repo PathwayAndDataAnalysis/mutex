@@ -66,7 +66,7 @@
 						</descriptorRefs>
 						<archive>
 							<manifest>
-								<mainClass>MutexAnalysis</mainClass>
+								<mainClass>org.cbio.mutex.MutexGreedySearcher</mainClass>
 								<addClasspath>true</addClasspath>
 							</manifest>
 						</archive>
