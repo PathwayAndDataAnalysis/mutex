@@ -30,12 +30,12 @@ public class GeneAlt implements Cloneable, Serializable
 	/**
 	 * Changes array shuffled in a sticky way.
 	 */
-	private boolean[] shuf;
+	public boolean[] shuf;
 
 	/**
 	 * Changes array.
 	 */
-	private boolean[] ch;
+	boolean[] ch;
 
 	/**
 	 * Count of altered samples.
@@ -56,12 +56,14 @@ public class GeneAlt implements Cloneable, Serializable
 	/**
 	 * This is the estimated null distribution of group scores with this gene.
 	 */
-	double[] randScores;
+	List<Double> randScores;
 
 	/**
 	 * This is the estimated null distribution of group scores with this gene.
 	 */
-	private double[] randScoresSave;
+	private List<Double> randScoresSave;
+
+	private static final long serialVersionUID = 466072025998513732L;
 
 	/**
 	 * Constructor with parameters.
@@ -89,9 +91,19 @@ public class GeneAlt implements Cloneable, Serializable
 	 * Gets the related change array in the pack.
 	 * @return the related change array
 	 */
-	private Change[] getChanges()
+	public Change[] getChanges(Alteration alt)
 	{
-		return gene.get(alt);
+		return crop(gene.get(alt));
+	}
+
+	public AlterationPack getGene()
+	{
+		return gene;
+	}
+
+	public boolean[] getHyper()
+	{
+		return hyper;
 	}
 
 	/**
@@ -110,21 +122,36 @@ public class GeneAlt implements Cloneable, Serializable
 	 * Gets the sample values in a boolean array.
 	 * @return changes in a boolean array
 	 */
+	public boolean[] getBooleanChanges(Alteration alt)
+	{
+		Change[] ch = getChanges(alt);
+		if (ch == null) return null;
+
+		boolean[] b = new boolean[ch.length];
+		for (int i = 0; i < ch.length; i++)
+		{
+			b[i] = ch[i].isAltered();
+		}
+		return b;
+	}
+
+	/**
+	 * Gets the sample values in a boolean array.
+	 * @return changes in a boolean array
+	 */
 	public boolean[] getBooleanChanges()
 	{
 		if (ch == null)
 		{
 			if (shuf == null)
 			{
-				Change[] c = getChanges();
+				Change[] c = getChanges(alt);
 				ch = new boolean[c.length];
 
 				for (int i = 0; i < c.length; i++)
 				{
 					ch[i] = c[i].isAltered();
 				}
-
-				if (hyper != null) ch = crop(ch);
 			}
 			else
 			{
@@ -143,11 +170,12 @@ public class GeneAlt implements Cloneable, Serializable
 		return altCnt;
 	}
 
-	private boolean[] crop(boolean[] ch)
+	private Change[] crop(Change[] ch)
 	{
+		if (hyper == null || ch == null) return ch;
 		assert ch.length == hyper.length;
 
-		boolean[] c = new boolean[ArrayUtil.countValue(hyper, false)];
+		Change[] c = new Change[ArrayUtil.countValue(hyper, false)];
 
 		int k = 0;
 		for (int i = 0; i < hyper.length; i++)
@@ -155,30 +183,6 @@ public class GeneAlt implements Cloneable, Serializable
 			if (!hyper[i]) c[k++] = ch[i];
 		}
 		return c;
-	}
-
-	private String[] crop(String[] let)
-	{
-		assert let.length == hyper.length;
-
-		String[] c = new String[ArrayUtil.countValue(hyper, false)];
-
-		int k = 0;
-		for (int i = 0; i < hyper.length; i++)
-		{
-			if (!hyper[i]) c[k++] = let[i];
-		}
-		return c;
-	}
-
-	/**
-	 * Gets the sample values in a boolean array.
-	 * @return changes in a boolean array
-	 */
-	public boolean[] getNegativeChanges()
-	{
-		if (neg == null) neg = ArrayUtil.negate(getBooleanChanges());
-		return neg;
 	}
 
 	/**
@@ -232,7 +236,7 @@ public class GeneAlt implements Cloneable, Serializable
 	 */
 	public double getAlteredRatio()
 	{
-		return countAltered() / (double) getBooleanChanges().length;
+		return Math.round((countAltered() / (double) getBooleanChanges().length) * 1E10) / 1E10;
 	}
 
 	/**
@@ -269,20 +273,29 @@ public class GeneAlt implements Cloneable, Serializable
 
 	private String[] getLetterChanges()
 	{
-		Change[] c = getChanges();
-		Change[] mut = gene.get(Alteration.MUTATION);
-		Change[] cna = gene.get(Alteration.COPY_NUMBER);
+		Change[] c = getChanges(alt);
+		Change[] mut = getChanges(Alteration.MUTATION);
+		Change[] cna = getChanges(Alteration.COPY_NUMBER);
+		if (cna == null)
+		{
+			cna = new Change[mut.length];
+			for (int i = 0; i < cna.length; i++)
+			{
+				cna[i] = Change.NO_CHANGE;
+			}
+		}
 
 		String[] let = new String[c.length];
 
 		for (int i = 0; i < c.length; i++)
 		{
-			let[i] = c[i].isAltered() ? mut[i].isAltered() ? "M" :
-				cna[i] == Change.ACTIVATING ? "A" : cna[i] == Change.INHIBITING ? "D" :
-					"." : ".";
+			let[i] = c[i].isAltered() ? (mut[i].isAltered() ?
+				(cna[i] == Change.ACTIVATING ? "B" : cna[i] == Change.INHIBITING ? "E" : "M") :
+				(cna[i] == Change.ACTIVATING ? "A" : cna[i] == Change.INHIBITING ? "D" : "." ))
+				: ".";
 		}
 
-		return crop(let);
+		return let;
 	}
 
 	public void shuffle()
@@ -333,7 +346,7 @@ public class GeneAlt implements Cloneable, Serializable
 	 * Random permutation scores sorted ascending. Smaller score is more significant.
 	 * @param randScores
 	 */
-	public void setRandScores(double[] randScores)
+	public void setRandScores(List<Double> randScores)
 	{
 		this.randScores = randScores;
 	}
@@ -347,12 +360,12 @@ public class GeneAlt implements Cloneable, Serializable
 			else break;
 		}
 
-		return i / (double) randScores.length;
+		return i / (double) randScores.size();
 	}
 
 	public double getMinPval()
 	{
-		return getPvalOfScore(randScores[0]);
+		return getPvalOfScore(randScores.get(0));
 	}
 
 	public GeneAlt copy()

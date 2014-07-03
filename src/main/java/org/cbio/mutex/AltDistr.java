@@ -24,6 +24,7 @@ public class AltDistr
 	{
 		final Map<Integer, Integer> sample2Cnt = new HashMap<Integer, Integer>();
 		int size = genes.iterator().next().getSize();
+		double[] altSizes = new double[size];
 
 		Histogram h = new Histogram(50);
 
@@ -36,9 +37,18 @@ public class AltDistr
 			}
 			h.count(cnt);
 			sample2Cnt.put(i, cnt);
+			altSizes[i] = cnt;
 		}
 
 //		h.print();
+
+		if (false)
+		{
+			boolean[] outlier = Summary.markOutliers(altSizes, true);
+			System.out.println("original sample size: " + outlier.length);
+			System.out.println("outlier: " + ArrayUtil.countValue(outlier, true));
+			return outlier;
+		}
 
 		List<Integer> samples = new ArrayList<Integer>(sample2Cnt.keySet());
 		Collections.sort(samples, new Comparator<Integer>()

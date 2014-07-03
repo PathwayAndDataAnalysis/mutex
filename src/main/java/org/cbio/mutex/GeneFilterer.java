@@ -13,7 +13,7 @@ public class GeneFilterer
 		double fdrThr)
 	{
 		String study = dataset.caseList.substring(0, dataset.caseList.indexOf("_")).toUpperCase();
-		Set<String> genes = BroadAccessor.getMutsigGenes(study, fdrThr);
+		Set<String> genes = BroadAccessor.getMutsigGenes(study, fdrThr, true);
 		genes.addAll(BroadAccessor.getExpressionVerifiedGistic(study, fdrThr));
 
 //		Set<String> check = new HashSet<String>(Arrays.asList("RPS6KB1 TLK2".split(", ")));
@@ -48,7 +48,7 @@ public class GeneFilterer
 	public static Set<String> getMutsig(PortalDataset dataset, double fdrThr)
 	{
 		String study = dataset.caseList.substring(0, dataset.caseList.indexOf("_")).toUpperCase();
-		Set<String> genes = BroadAccessor.getMutsigGenes(study, fdrThr);
+		Set<String> genes = BroadAccessor.getMutsigGenes(study, fdrThr, true);
 		return genes;
 	}
 

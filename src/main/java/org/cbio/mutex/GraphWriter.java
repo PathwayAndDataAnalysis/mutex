@@ -40,6 +40,8 @@ public class GraphWriter
 
 		for (Group group : groups)
 		{
+			if (group.getGeneNames().contains("PTEN")) continue;
+
 			// write group id and members
 
 			String groupID = group.getID();
@@ -128,17 +130,21 @@ public class GraphWriter
 			writer.write("node\t" + id + "\tcolor\t" + node2color.get(id) + "\n");
 			writer.write("node\t" + id + "\ttooltip\t" + node2tooltip.get(id) + "\n");
 
-			String subtype = sa.getMostEnrichedSubtype(id, 0.05);
-			if (subtype != null)
+			if (sa != null)
 			{
-				writer.write("node\t" + id + "\thighlight\ton\n");
-				writer.write("node\t" + id + "\thighlightcolor\t" +
-					H_COLS.get(sa.getAllSubtypes().indexOf(subtype)) + "\n");
+				String subtype = sa.getMostEnrichedSubtype(id, 0.05);
+				if (subtype != null)
+				{
+					writer.write("node\t" + id + "\thighlight\ton\n");
+					writer.write("node\t" + id + "\thighlightcolor\t" +
+						H_COLS.get(sa.getAllSubtypes().indexOf(subtype)) + "\n");
+				}
 			}
 		}
 		for (String target : to)
 		{
 			writer.write("node\t" + target + "\tbordercolor\t255 255 255\n");
+			writer.write("node\t" + target + "\ttextcolor\t155 155 155\n");
 		}
 		writer.close();
 	}

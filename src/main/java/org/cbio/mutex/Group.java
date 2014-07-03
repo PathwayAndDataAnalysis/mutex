@@ -2,6 +2,7 @@ package org.cbio.mutex;
 
 import org.cbio.causality.analysis.Graph;
 import org.cbio.causality.cocitation.CocitationManager;
+import org.cbio.causality.model.Alteration;
 import org.cbio.causality.util.ArrayUtil;
 import org.cbio.causality.util.FormatUtil;
 import org.cbio.causality.util.Overlap;
@@ -109,6 +110,25 @@ public class Group implements Serializable
 		return pvals;
 	}
 
+	/**
+	 * Calculates multiple-hypothesis-corrected p-values for each gene in the group.
+	 */
+	public Map<String, Double> calcPVals2(Map<String, Double> pvals1)
+	{
+		if (pvals1 == null) pvals1 = calcPVals1();
+
+		Map<String, Double> pvals2 = new HashMap<String, Double>();
+
+		for (GeneAlt member : members)
+		{
+			pvals2.put(member.getId(), member.getPvalOfScore(pvals1.get(member.getId())));
+		}
+		if (candidate != null)
+			pvals2.put(candidate.getId(), candidate.getPvalOfScore(pvals1.get(candidate.getId())));
+
+		return pvals2;
+	}
+
 	private int countOverlapWithCandidate(boolean[] mov, boolean[] mch, boolean[] cch)
 	{
 		int cnt = 0;
@@ -160,9 +180,9 @@ public class Group implements Serializable
 	public double calcFutureScore(GeneAlt gene)
 	{
 		this.candidate = gene;
-		double pval = calcScore();
+		double score = calcScore();
 		this.candidate = null;
-		return pval;
+		return score;
 	}
 
 	/**
@@ -171,15 +191,16 @@ public class Group implements Serializable
 	 * @param gene gene alteration to consider
 	 * @return geometric mean of the new p-values
 	 */
-	public double calcFuturePVal(GeneAlt gene)
+	public double calcFutureFinalScore(GeneAlt gene)
 	{
 		this.candidate = gene;
-		double pval = calcPvalOfScore(calcScore());
+//		double pval = covertToFinal(calcScore());
+		double pval = selectWorst(calcPVals2(null));
 		this.candidate = null;
 		return pval;
 	}
 
-	public double calcPvalOfScore(double score)
+	public double covertToFinal(double score)
 	{
 		double worst = 0;
 
@@ -196,9 +217,21 @@ public class Group implements Serializable
 		return worst;
 	}
 
-	public double calcPVal()
+
+	public double calcFinalScore()
 	{
-		return calcPvalOfScore(calcScore());
+//		return covertToFinal(calcScore());
+		return selectWorst(calcPVals2(null));
+	}
+
+	private double selectWorst(Map<String, Double> vals)
+	{
+		double max = -1;
+		for (Double v : vals.values())
+		{
+			if (v > max) max = v;
+		}
+		return max;
 	}
 
 	/**
@@ -396,6 +429,26 @@ public class Group implements Serializable
 
 	// Section oncoprint
 
+//	/**
+//	 * Gets an ordering for the samples to make the oncoprint look nicer.
+//	 * @return sample ordering for printing oncoprint
+//	 */
+//	private List<Integer> getPrintOrdering()
+//	{
+//		List<Integer> order = new ArrayList<Integer>();
+//
+//		for (GeneAlt gene : members)
+//		{
+//			boolean[] ch = gene.getBooleanChanges();
+//
+//			for (int i = 0; i < ch.length; i++)
+//			{
+//				if (ch[i] && !order.contains(i)) order.add(i);
+//			}
+//		}
+//		return order;
+//	}
+
 	/**
 	 * Gets an ordering for the samples to make the oncoprint look nicer.
 	 * @return sample ordering for printing oncoprint
@@ -404,16 +457,87 @@ public class Group implements Serializable
 	{
 		List<Integer> order = new ArrayList<Integer>();
 
-		for (GeneAlt gene : members)
+		for (int i = 0; i < members.get(0).getBooleanChanges().length; i++)
 		{
-			boolean[] ch = gene.getBooleanChanges();
-
-			for (int i = 0; i < ch.length; i++)
-			{
-				if (ch[i] && !order.contains(i)) order.add(i);
-			}
+			order.add(i);
 		}
+
+		final boolean[][] marks = new boolean[members.get(0).getBooleanChanges().length][];
+
+		for (int i = 0; i < marks.length; i++)
+		{
+			marks[i] = alterationMarks(i);
+		}
+
+		final boolean[][] mut = new boolean[members.size()][];
+		final boolean[][] cna = new boolean[members.size()][];
+
+		for (int i = 0; i < members.size(); i++)
+		{
+			mut[i] = members.get(i).getBooleanChanges(Alteration.MUTATION);
+			cna[i] = members.get(i).getBooleanChanges(Alteration.COPY_NUMBER);
+			if (cna[i] == null) cna[i] = new boolean[mut[i].length];
+		}
+
+		Collections.sort(order, new Comparator<Integer>()
+		{
+			@Override
+			public int compare(Integer o1, Integer o2)
+			{
+				boolean[] m1 = marks[o1];
+				boolean[] m2 = marks[o2];
+
+				int c = 0;
+				for (int i = 0; i < members.size(); i++)
+				{
+					if (m1[i] && !m2[i]) c = -1;
+					if (!m1[i] && m2[i]) c = 1;
+					if (c != 0) break;
+				}
+
+				if (c != 0)
+				{
+					if (getNumberOfInitialPositiveAltOverlap(m1, m2) % 2 == 1) return -c;
+					else return c;
+				}
+
+				for (int i = 0; i < members.size(); i++)
+				{
+					if (mut[i][o1] && !mut[i][o2]) return -1;
+					if (!mut[i][o1] && mut[i][o2]) return 1;
+					if (cna[i][o1] && !cna[i][o2]) return 1;
+					if (!cna[i][o1] && cna[i][o2]) return -1;
+				}
+
+				return 0;
+			}
+		});
+
 		return order;
+	}
+
+	private boolean[] alterationMarks(int sample)
+	{
+		boolean[] b = new boolean[members.size()];
+		for (int i = 0; i < b.length; i++)
+		{
+			b[i] = members.get(i).getBooleanChanges()[sample];
+		}
+		return b;
+	}
+
+	private int getNumberOfInitialPositiveAltOverlap(boolean[] m1, boolean[] m2)
+	{
+		int x = 0;
+
+		for (int i = 0; i < members.size(); i++)
+		{
+			if (!m1[i] && !m2[i] && x == 0) continue;
+
+			if (m1[i] && m2[i]) x++;
+			else break;
+		}
+		return x;
 	}
 
 	/**
@@ -431,17 +555,30 @@ public class Group implements Serializable
 	 */
 	public String getPrint(SubtypeAligner sa)
 	{
+		return getPrint(sa, null, true);
+	}
+
+	/**
+	 * Gets the oncoprint of the members in a String.
+	 * @param withMHT with multiple hypothesis testing
+	 * @return oncoprint
+	 */
+	public String getPrint(SubtypeAligner sa, Map<String, String> nameConvMap, boolean withMHT)
+	{
 		List<Integer> order = getPrintOrdering();
 		Map<String, Double> p = calcPVals1();
 		double score = calcScore();
 		StringBuilder s = new StringBuilder();
 
-		s.append("[").append(getGeneNamesInString()).append("]\tcover: ").
+		String names = getGeneNamesInString();
+		if (nameConvMap != null) names = replaceNames(names, nameConvMap);
+
+		s.append("[").append(names).append("]\tcover: ").
 			append(FormatUtil.roundToSignificantDigits(calcCoverage(), 2)).
 			append("\tscore: ").
-			append(FormatUtil.roundToSignificantDigits(score, 2)).
-			append("\tcorrected-score: ").
-			append(FormatUtil.roundToSignificantDigits(calcPVal(), 2)).
+			append(FormatUtil.roundToSignificantDigits(score, 2));
+		if (withMHT) s.append("\tcorrected-score: ").
+			append(FormatUtil.roundToSignificantDigits(calcFinalScore(), 2)).
 			append("\ttargets:").append(getTargets());
 
 		for (GeneAlt gene : members)
@@ -449,8 +586,8 @@ public class Group implements Serializable
 			s.append("\n").append(gene.getPrint(order)).
 				append((gene.getId().length() < 4) ? "  \t" : "\t").
 				append("\tp1: ").
-				append(FormatUtil.roundToSignificantDigits(p.get(gene.getId()), 2)).
-				append("\tp2: ").
+				append(FormatUtil.roundToSignificantDigits(p.get(gene.getId()), 2));
+			if (withMHT) s.append("\tp2: ").
 				append(FormatUtil.roundToSignificantDigits(gene.getPvalOfScore(score), 2));
 			if (sa != null)
 			{
@@ -461,6 +598,16 @@ public class Group implements Serializable
 		return s.toString();
 	}
 
+
+	private String replaceNames(String names, Map<String, String> convMap)
+	{
+		StringBuilder s = new StringBuilder();
+		for (String name : names.split(" "))
+		{
+			s.append(convMap.get(name)).append(" ");
+		}
+		return s.toString().trim();
+	}
 
 	// Section: static methods
 
@@ -563,7 +710,8 @@ public class Group implements Serializable
 
 		for (String gene : mutex)
 		{
-			citMap.put(gene, coMan.getCocitations(gene));
+//			citMap.put(gene, coMan.getCocitations(gene));
+			citMap.put(gene, new HashMap<String, Integer>());
 		}
 
 		List<String> sorted = new ArrayList<String>(comTar);

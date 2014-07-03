@@ -1,21 +1,21 @@
 package org.cbio.mutex;
 
-import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
 import org.biopax.paxtools.pattern.miner.SIFEnum;
 import org.cbio.causality.analysis.Graph;
 import org.cbio.causality.analysis.SIFLinker;
 import org.cbio.causality.data.GeneCards;
+import org.cbio.causality.data.portal.BroadAccessor;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
+import org.cbio.causality.model.Change;
 import org.cbio.causality.network.PathwayCommons;
 import org.cbio.causality.network.SPIKE;
 import org.cbio.causality.network.SignaLink;
 import org.cbio.causality.util.Histogram;
-import org.cbio.causality.util.Histogram2D;
+import org.cbio.causality.util.Overlap;
 import org.cbio.causality.util.Summary;
 
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
 
@@ -25,10 +25,10 @@ import java.util.*;
  */
 public class Main
 {
-	public static final PortalDataset data = PortalDataset.BRCA;
-	public static final double MIN_ALTERATION_THR = 0.03;
+	public static final PortalDataset data = PortalDataset.GBM;
+	public static final double MIN_ALTERATION_THR = data.minAltThr;
 	public static final double FDR_THR = 0.05;
-	public static final int MAX_GROUP_SIZE = 7;
+	public static final int MAX_GROUP_SIZE = 10;
 	public static final int RANDOMIZATION_TRIALS1 = 10000;
 	public static final int RANDOMIZATION_TRIALS2 = 1000;
 
@@ -38,6 +38,7 @@ public class Main
 
 	// For debug purposes
 	public static final boolean LOAD_RESULTS_FROM_FILE = false;
+	public static final boolean JUST_WRITE_THE_INPUT_DATA = false;
 
 	public static void main(String[] args) throws IOException, ClassNotFoundException
 	{
@@ -54,75 +55,96 @@ public class Main
 		Graph graphSig = loadPTRGraph();
 		Graph graphTR = loadTRGraph();
 
-		Graph graph = new Graph("directed network", "is-upstream-of");
-		graph.merge(graphSig);
-		graph.merge(graphTR);
+		Graph graph = getGraph(graphSig, graphTR);
 		Set<String> symbols = decideSymbols(graph);
-
-//		Set<String> symbols = graph.getSymbols();
-//		SimulatedDataGenerator sim = new SimulatedDataGenerator(graph);
-//		sim.generate();
 
 		// load the alteration data
 		Map<String, AlterationPack> genesMap;
-		if (data == PortalDataset.SIMUL)
+		if (data.name.equals("simulated"))
 		{
-			genesMap = SimulatedDataGenerator.loadSimData(symbols);
+			genesMap = Simulation.loadSimData(symbols, data);
 		}
 		else
 		{
 			genesMap = readPortal(symbols);
 		}
 
-//		printDatasetCharacteristics(genesMap);
-
-		MutexGreedySearcher searcher = new MutexGreedySearcher(
-			graph, genesMap, MIN_ALTERATION_THR, REMOVE_HYPERMUTATED_OUTLIERS);
-
-		List<Group> groups;
 		String groupsFilename = "result/" + data.study + ".groups";
 
-		if (!LOAD_RESULTS_FROM_FILE)
-		{
-			// greedy search for the upstream of each gene
-			groups = searcher.search(FDR_THR, MAX_GROUP_SIZE,
-				RANDOMIZATION_TRIALS1, RANDOMIZATION_TRIALS2, data.study);
+		if (data == PortalDataset.SKCM ||
+			data == PortalDataset.LUAD ||
+//			data == PortalDataset.OV ||
+			data == PortalDataset.LUSC)
+			applyMutsigThreshold(genesMap, 0.05);
 
-			// sort the list favoring high-coverage
-			Group.sortToCoverage(groups);
-			Group.serialize(groups, groupsFilename);
+//		printDatasetCharacteristics(genesMap);
 
-			searcher.addOmitted();
-		}
-		else
+		MutexGreedySearcher searcher = LOAD_RESULTS_FROM_FILE ?
+			MutexGreedySearcher.deserialize(groupsFilename) :
+			new MutexGreedySearcher(graph, genesMap, MIN_ALTERATION_THR, REMOVE_HYPERMUTATED_OUTLIERS);
+
+		if (JUST_WRITE_THE_INPUT_DATA)
 		{
-			groups = Group.deserialize(groupsFilename);
+			searcher.serialize("cache-" + data.study);
+			return;
 		}
+
+		if (false)
+		{
+//			MutexSimpleRanker msr = new MutexSimpleRanker(genesMap);
+//			msr.search("ranks-v1.txt", Simulation.extractGroupSize(data), Simulation.getLabelMap(data, genesMap));
+
+			PairSearcher ps = new PairSearcher(genesMap);
+			ps.search("pairs-v3.txt", Simulation.getLabelMap(data, genesMap));
+
+//			searcher.writeRankedGroups(MAX_GROUP_SIZE, RANDOMIZATION_TRIALS1, Simulation.getLabelMap(data, genesMap), "mutex-ranked-groups-v3-nograph.txt");
+			return;
+		}
+
+		List<Group> groups;
+
+		// greedy search for the upstream of each gene
+		groups = searcher.search(FDR_THR, MAX_GROUP_SIZE, RANDOMIZATION_TRIALS1,
+			RANDOMIZATION_TRIALS2, data.study, LOAD_RESULTS_FROM_FILE ? null : groupsFilename);
+
+		// sort the list favoring high-coverage
+		Group.sortToCoverage(groups);
+		searcher.addOmitted();
+
+//		groups = Simulation.getTrueGroups(data, searcher);
 
 		SIFLinker linker = new SIFLinker();
 		linker.load(graphSig);
 		linker.load(graphTR);
 
 		SubtypeAligner sa =
-		data == PortalDataset.BRCA ?
-			new SubtypeAligner(PortalDataset.BRCA_PUB, Group.collectGenes(groups)) :
-			new SubtypeAligner(data, groups, searcher.getHyper());
+		data == PortalDataset.BRCA ? new SubtypeAligner(PortalDataset.BRCA_PUB, Group.collectGenes(groups)) :
+		data == PortalDataset.GBM ? new SubtypeAligner(PortalDataset.GBM_PUB, Group.collectGenes(groups)) :
+		data.name.equals("simulated") ? null : new SubtypeAligner(data, groups, searcher.getHyper());
 
 		// Write the output graph to visualize in ChiBE
 		GraphWriter.write(groups, searcher.getGenes(), linker, "result/", data.study, sa);
+		Map<String, String> nameConvMap = data.name.equals("simulated") ?
+			Simulation.getLabelMap(data, genesMap) : null;
 
 		// Print textual results
 		for (Group group : groups)
 		{
-			System.out.println(group.getPrint(sa) + "\n");
+			System.out.println(group.getPrint(sa, nameConvMap, true) + "\n");
 		}
 
 		System.out.println();
-		if (data == PortalDataset.SIMUL) SimulatedDataGenerator.evaluateSuccess(groups);
+		printOverlappingCNA(groups, genesMap);
+		System.out.println();
+
+		if (data.name.equals("simulated")) Simulation.evaluateSuccess(groups, data, genesMap);
 		else printAnnotations(getGenes(groups, genesMap));
+
+//		Oncoprint onco = new Oncoprint(groups, data);
+//		onco.write();
 	}
 
-	private static Set<String> decideSymbols(Graph graph) throws FileNotFoundException
+	private static Set<String>  decideSymbols(Graph graph) throws FileNotFoundException
 	{
 		// Filter gens to mutsig and gistic
 		Set<String> symbols = graph.getSymbols();
@@ -138,9 +160,9 @@ public class Main
 		{
 			Set<String> syms = new HashSet<String>(symbols);
 
-			if (data == PortalDataset.SIMUL)
+			if (data == PortalDataset.SIMUL1)
 			{
-				syms = SimulatedDataGenerator.getMutsig();
+//				syms = SimulatedDataGenerator.getMutsig();
 			}
 			else GeneFilterer.filterToMutsigAndGistic(syms, data, 0.05);
 
@@ -155,7 +177,27 @@ public class Main
 			symbols = graph.getSymbols();
 			System.out.println("symbols cropped size = " + symbols.size());
 		}
+
+//		if (data == PortalDataset.SKCM)
+//		{
+//			GeneFilterer.filterToMutsigAndGistic(symbols, data, 0.05);
+//			System.out.println("symbols size filtered by mutsig and gistic = " + symbols.size());
+//		}
+
 		return symbols;
+	}
+
+	public static Graph getGraph()
+	{
+		return getGraph(loadPTRGraph(), loadTRGraph());
+	}
+
+	public static Graph getGraph(Graph graphSig, Graph graphTR)
+	{
+		Graph graph = new Graph("directed network", "is-upstream-of");
+		graph.merge(graphSig);
+		graph.merge(graphTR);
+		return graph;
 	}
 
 	private static Graph loadTRGraph()
@@ -331,5 +373,70 @@ public class Main
 		System.out.println("Summary.stdev(geneCov) = " + Summary.stdev(v));
 
 		System.exit(0);
+	}
+
+	private static void applyMutsigThreshold(Map<String, AlterationPack> genes, double pvalThr)
+	{
+		String study = data.caseList.substring(0, data.caseList.indexOf("_")).toUpperCase();
+		Set<String> mutsig = BroadAccessor.getMutsigGenes(study, pvalThr, false);
+		for (AlterationPack pack : genes.values())
+		{
+			if (!mutsig.contains(pack.getId()))
+			{
+				for (int i = 0; i < pack.getSize(); i++)
+				{
+					pack.get(Alteration.MUTATION)[i] = Change.NO_CHANGE;
+				}
+
+				pack.complete(Alteration.GENOMIC);
+			}
+		}
+	}
+
+	private static void printOverlappingCNA(List<Group> groups, Map<String, AlterationPack> packMap)
+	{
+		List<Set<String>> list = new ArrayList<Set<String>>();
+		Set<String> genes = new HashSet<String>();
+		for (Group group : groups)
+		{
+			genes.addAll(group.getGeneNames());
+		}
+		for (String gene : genes)
+		{
+			list.add(new HashSet<String>(Arrays.asList(gene)));
+		}
+
+		for (String gene : genes)
+		{
+			AlterationPack pack1 = packMap.get(gene);
+			if (pack1.get(Alteration.COPY_NUMBER) == null) continue;
+
+			for (Set<String> group : list)
+			{
+				if (!group.contains(gene))
+				{
+					boolean allFit = true;
+					for (String g2 : group)
+					{
+						AlterationPack pack2 = packMap.get(g2);
+						if (pack2.get(Alteration.COPY_NUMBER) == null ||
+							Overlap.calcCoocPval(pack1.get(Alteration.COPY_NUMBER),
+								pack2.get(Alteration.COPY_NUMBER)) > 0.001)
+						{
+							allFit = false;
+							break;
+						}
+					}
+					if (allFit) group.add(gene);
+				}
+			}
+		}
+
+		Set<Set<String>> ss = new HashSet<Set<String>>(list);
+		System.out.println("Cooccurred CNA groups:");
+		for (Set<String> group : ss)
+		{
+			if (group.size() > 1) System.out.println(group);
+		}
 	}
 }
