@@ -9,7 +9,7 @@ import java.util.*;
 
 public class PrintPerformances
 {
-	private static final PortalDataset dataset = PortalDataset.SIMUL2;
+	private static final PortalDataset dataset = PortalDataset.SIMUL1;
 	private static final int VERSION = dataset == PortalDataset.SIMUL1 ? 1 : dataset == PortalDataset.SIMUL2 ? 2 : 3;
 
 	public static void main(String[] args) throws IOException, InterruptedException
@@ -21,9 +21,9 @@ public class PrintPerformances
 
 	private void printDiscoveryGraphs() throws IOException
 	{
-		Graph graph = Main.getGraph();
+		Graph graph = new Network();
 		final Map<String, String> labelMap = Simulation.getLabelMap(dataset,
-			Simulation.loadSimData(graph.getSymbols(), dataset));
+			Simulation.loadSimData(graph.getSymbols(), dataset).keySet());
 
 		final String base = "/home/ozgun/Documents/mutex-comparison/";
 		CustomResult[] cus = new CustomResult[]{
@@ -38,24 +38,20 @@ public class PrintPerformances
 				@Override
 				public String getFilename1()
 				{
-					return "mutex-ranked-groups-v1.txt";
+					return "data/simulation1/ranked-groups.txt";
 				}
 
 				@Override
 				public String getFilename2()
 				{
-					return "mutex-ranked-groups-v2.txt";
-				}
-
-				@Override
-				public String getFilename3()
-				{
-					return "mutex-ranked-groups-v3.txt";
+					return "data/simulation2/ranked-groups.txt";
 				}
 
 				@Override
 				public String[] getGroupMembers(String line)
 				{
+					if (line.startsWith("S")) return null;
+					line = line.substring(line.indexOf("\t") + 1);
 					return line.split("\t");
 				}
 			},
@@ -77,12 +73,6 @@ public class PrintPerformances
 				public String getFilename2()
 				{
 					return "pairs-v2.txt";
-				}
-
-				@Override
-				public String getFilename3()
-				{
-					return "pairs-v3.txt";
 				}
 
 				@Override
@@ -112,12 +102,6 @@ public class PrintPerformances
 				}
 
 				@Override
-				public String getFilename3()
-				{
-					return base + "rmeMod/simdata3/topModules";
-				}
-
-				@Override
 				public String[] getGroupMembers(String line)
 				{
 					return line.substring(line.lastIndexOf("\t") + 1).split(",");
@@ -144,12 +128,6 @@ public class PrintPerformances
 				}
 
 				@Override
-				public String getFilename3()
-				{
-					return base + "Dendrix/results-v3.txt";
-				}
-
-				@Override
 				public String[] getGroupMembers(String line)
 				{
 					return line.substring(line.indexOf("\t") + 1, line.lastIndexOf("\t")).split("\t");
@@ -173,12 +151,6 @@ public class PrintPerformances
 				public String getFilename2()
 				{
 					return base + "MDPfinder/results-v2.txt";
-				}
-
-				@Override
-				public String getFilename3()
-				{
-					return base + "MDPfinder/results-v3.txt";
 				}
 
 				@Override
@@ -210,12 +182,6 @@ public class PrintPerformances
 				}
 
 				@Override
-				public String getFilename3()
-				{
-					return base + "multi-dendrix/results-v3.txt";
-				}
-
-				@Override
 				public String[] getGroupMembers(String line)
 				{
 					return line.substring(0, line.lastIndexOf("\t")).split("\t");
@@ -239,12 +205,6 @@ public class PrintPerformances
 				public String getFilename2()
 				{
 					return base + "MEMo/cancer_data/simulation2/MemoReport.txt";
-				}
-
-				@Override
-				public String getFilename3()
-				{
-					return null;
 				}
 
 				@Override
@@ -285,12 +245,6 @@ public class PrintPerformances
 				}
 
 				@Override
-				public String getFilename3()
-				{
-					return null;
-				}
-
-				@Override
 				public String[] getGroupMembers(String line)
 				{
 					if (line.startsWith("Module ID")) return null;
@@ -328,12 +282,6 @@ public class PrintPerformances
 				}
 
 				@Override
-				public String getFilename3()
-				{
-					return null;
-				}
-
-				@Override
 				public String[] getGroupMembers(String line)
 				{
 					if (line.startsWith("G")) return null;
@@ -355,42 +303,71 @@ public class PrintPerformances
 				@Override
 				public String getFilename1()
 				{
-					return "mutex-ranked-groups-v1-nograph.txt";
+					return "data/simulation1-no-reduction/ranked-groups.txt";
+//					return "mutex-ranked-groups-v1-noreduce-replicate.txt";
 				}
 
 				@Override
 				public String getFilename2()
 				{
-					return "mutex-ranked-groups-v2-nograph.txt";
-				}
-
-				@Override
-				public String getFilename3()
-				{
-					return "mutex-ranked-groups-v3-nograph.txt";
+					return "data/simulation2-no-reduction/ranked-groups.txt";
 				}
 
 				@Override
 				public String[] getGroupMembers(String line)
 				{
+					if (line.startsWith("S")) return null;
+					line = line.substring(line.indexOf("\t") + 1);
 					return line.split("\t");
 				}
 			},
 		};
 
+		Map<String, List<double[]>> map = new HashMap<String, List<double[]>>();
 
 		for (CustomResult cu : cus)
 		{
-//			List<double[]> points = getROCPoints(cu);
-			List<double[]> points = getDiscoveryGraph(cu);
+			List<double[]> points = getROCPoints(cu);
+//			List<double[]> points = getDiscoveryGraph(cu);
 			if (points == null) continue;
-			System.out.println("\t" + cu.getName());
-			for (double[] point : points)
-			{
-				System.out.println(point[0] + "\t" + point[1]);
-			}
-			System.out.println();
+
+			map.put(cu.getName(), points);
+
+//			System.out.println("\t" + cu.getName());
+//			for (double[] point : points)
+//			{
+//				System.out.println(point[0] + "\t" + point[1]);
+//			}
+//			System.out.println();
 		}
+
+		int size = 0;
+		for (List<double[]> list : map.values())
+		{
+			if (list.size() > size) size = list.size();
+		}
+
+		for (CustomResult cu : cus)
+		{
+			if (map.containsKey(cu.getName())) System.out.print("\t" + cu.getName() + "\t");
+		}
+		for (int i = 0; i < size; i++)
+		{
+			System.out.println();
+
+			for (CustomResult cu : cus)
+			{
+				if (map.containsKey(cu.getName()))
+				{
+					List<double[]> list = map.get(cu.getName());
+					if (list.size() > i)
+						System.out.print(list.get(i)[0] + "\t" + list.get(i)[1] + "\t");
+					else
+						System.out.print("\t\t");
+				}
+			}
+		}
+		System.out.println();
 	}
 
 
@@ -405,7 +382,7 @@ public class PrintPerformances
 		List<double[]> plot = new ArrayList<double[]>();
 
 		String filename = VERSION == 1 ? cr.getFilename1() :
-			VERSION == 2 ? cr.getFilename2() : cr.getFilename3();
+			VERSION == 2 ? cr.getFilename2() : null;
 
 		if (filename == null) return null;
 		if (!new File(filename).exists())
@@ -441,11 +418,14 @@ public class PrintPerformances
 
 	private List<double[]> getDiscoveryGraph(CustomResult cr) throws FileNotFoundException
 	{
+		double CP = VERSION == 1 ? 150 : 60;
+		double CN = VERSION == 1 ? 680 : 96;
+
 		Set<String> ts = new HashSet<String>();
 		Set<String> fs = new HashSet<String>();
 
 		String filename = VERSION == 1 ? cr.getFilename1() :
-			VERSION == 2 ? cr.getFilename2() : cr.getFilename3();
+			VERSION == 2 ? cr.getFilename2() : null;
 
 		if (filename == null) return null;
 		if (!new File(filename).exists())
@@ -486,6 +466,7 @@ public class PrintPerformances
 		for (int i = 0; i <= 100; i++)
 		{
 			double d =  i / 100D;
+//			res.add(new double[]{d, counts.get(d) / CP});
 			res.add(new double[]{d, counts.get(d)});
 		}
 		return res;
@@ -513,7 +494,6 @@ public class PrintPerformances
 		String getName();
 		String getFilename1();
 		String getFilename2();
-		String getFilename3();
 		String[] getGroupMembers(String line);
 	}
 }

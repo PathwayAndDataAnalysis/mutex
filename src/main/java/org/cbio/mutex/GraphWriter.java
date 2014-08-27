@@ -1,7 +1,6 @@
 package org.cbio.mutex;
 
 import org.biopax.paxtools.pattern.miner.SIFEnum;
-import org.cbio.causality.analysis.SIFLinker;
 import org.cbio.causality.util.FormatUtil;
 
 import java.io.FileOutputStream;
@@ -22,13 +21,13 @@ public class GraphWriter
 	 * Writes the graph data for the given groups and the given network provider to the given
 	 * stream.
 	 * @param groups groups of genes
-	 * @param linker network helper
+	 * @param network network data
 	 */
 	public static void write(List<Group> groups, Map<String, GeneAlt> geneMap,
-		SIFLinker linker, String dir, String graphName, SubtypeAligner sa) throws IOException
+		Network network, String dir, String graphName, SubtypeAligner sa) throws IOException
 	{
 		Set<String> to = getTargetOnly(groups);
-		OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(dir + graphName + ".sif"));
+		OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(dir + "merged-network.sif"));
 
 		Map<String, String> node2color = new HashMap<String, String>();
 		Map<String, String> node2tooltip = new HashMap<String, String>();
@@ -40,7 +39,7 @@ public class GraphWriter
 
 		for (Group group : groups)
 		{
-			if (group.getGeneNames().contains("PTEN")) continue;
+//			if (group.getGeneNames().contains("PTEN")) continue;
 
 			// write group id and members
 
@@ -72,8 +71,8 @@ public class GraphWriter
 				{
 					tarNames.add(tarName);
 				}
-				// limit targets to two
-				if (tarNames.size() == 2) break;
+				// limit targets to one
+				if (tarNames.size() == 1) break;
 			}
 
 			for (String tarName : tarNames)
@@ -92,7 +91,7 @@ public class GraphWriter
 			Set<String> genes = new HashSet<String>(memNames);
 			genes.addAll(tarNames);
 
-			List<String> relations = linker.linkProgressive(genes, genes, 0);
+			List<String> relations = network.linker.linkProgressive(genes, genes, 0);
 			for (String rel : relations)
 			{
 				String[] tok = rel.split("\t");
@@ -119,11 +118,11 @@ public class GraphWriter
 		writer.close();
 
 		// write the graph to the stream
-		writer = new OutputStreamWriter(new FileOutputStream(dir + graphName + ".cus"));
+		writer = new OutputStreamWriter(new FileOutputStream(dir + "result-groups.cus"));
 		writer.write(s);
 		writer.close();
 
-		writer = new OutputStreamWriter(new FileOutputStream(dir + graphName + ".format"));
+		writer = new OutputStreamWriter(new FileOutputStream(dir + "merged-network.format"));
 		writer.write("node\tall-nodes\tcolor\t255 255 255\n");
 		for (String id : node2color.keySet())
 		{

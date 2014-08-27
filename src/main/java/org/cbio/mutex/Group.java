@@ -1,8 +1,6 @@
 package org.cbio.mutex;
 
 import org.cbio.causality.analysis.Graph;
-import org.cbio.causality.cocitation.CocitationManager;
-import org.cbio.causality.model.Alteration;
 import org.cbio.causality.util.ArrayUtil;
 import org.cbio.causality.util.FormatUtil;
 import org.cbio.causality.util.Overlap;
@@ -16,10 +14,7 @@ import java.util.*;
  */
 public class Group implements Serializable
 {
-	private final static CocitationManager coMan = new CocitationManager(
-		365, "portal-cache/cocitation-cache");
-
-	private static final long serialVersionUID = 350555030919624296L;
+	private static final long serialVersionUID = 374555033512864697L;
 
 	/**
 	 * Genes in the group.
@@ -126,6 +121,11 @@ public class Group implements Serializable
 		if (candidate != null)
 			pvals2.put(candidate.getId(), candidate.getPvalOfScore(pvals1.get(candidate.getId())));
 
+		for (String gene : pvals2.keySet())
+		{
+			if (pvals1.get(gene) > pvals2.get(gene)) pvals2.put(gene, pvals1.get(gene));
+		}
+
 		return pvals2;
 	}
 
@@ -171,6 +171,7 @@ public class Group implements Serializable
 		return pv;
 	}
 
+
 	/**
 	 * Assuming the given gene is added to the group, calculates the new score for the group.
 	 * Does not modify the group.
@@ -185,6 +186,14 @@ public class Group implements Serializable
 		return score;
 	}
 
+	public Map<String, Double> calcFuturePvals1(GeneAlt gene)
+	{
+		this.candidate = gene;
+		Map<String, Double> vals = calcPVals1();
+		this.candidate = null;
+		return vals;
+	}
+
 	/**
 	 * Assuming the given gene is added to the group, calculates the new pval for the group.
 	 * Does not modify the group.
@@ -194,44 +203,14 @@ public class Group implements Serializable
 	public double calcFutureFinalScore(GeneAlt gene)
 	{
 		this.candidate = gene;
-//		double pval = covertToFinal(calcScore());
-		double pval = selectWorst(calcPVals2(null));
+		double pval = calcFinalScore();
 		this.candidate = null;
 		return pval;
 	}
 
-	public double covertToFinal(double score)
-	{
-		double worst = 0;
-
-		for (GeneAlt member : members)
-		{
-			double pval = member.getPvalOfScore(score);
-			if (pval > worst) worst = pval;
-		}
-		if (candidate != null)
-		{
-			double pval = candidate.getPvalOfScore(score);
-			if (pval > worst) worst = pval;
-		}
-		return worst;
-	}
-
-
 	public double calcFinalScore()
 	{
-//		return covertToFinal(calcScore());
-		return selectWorst(calcPVals2(null));
-	}
-
-	private double selectWorst(Map<String, Double> vals)
-	{
-		double max = -1;
-		for (Double v : vals.values())
-		{
-			if (v > max) max = v;
-		}
-		return max;
+		return getMaxValue(calcPVals2(null));
 	}
 
 	/**
@@ -362,6 +341,7 @@ public class Group implements Serializable
 	{
 		boolean[] merged = getMergedAlterations(-1);
 		return ArrayUtil.countValue(merged, true) / (double) merged.length;
+//		return ArrayUtil.countValue(merged, true);
 	}
 
 	/**
@@ -427,28 +407,6 @@ public class Group implements Serializable
 		return g;
 	}
 
-	// Section oncoprint
-
-//	/**
-//	 * Gets an ordering for the samples to make the oncoprint look nicer.
-//	 * @return sample ordering for printing oncoprint
-//	 */
-//	private List<Integer> getPrintOrdering()
-//	{
-//		List<Integer> order = new ArrayList<Integer>();
-//
-//		for (GeneAlt gene : members)
-//		{
-//			boolean[] ch = gene.getBooleanChanges();
-//
-//			for (int i = 0; i < ch.length; i++)
-//			{
-//				if (ch[i] && !order.contains(i)) order.add(i);
-//			}
-//		}
-//		return order;
-//	}
-
 	/**
 	 * Gets an ordering for the samples to make the oncoprint look nicer.
 	 * @return sample ordering for printing oncoprint
@@ -474,8 +432,8 @@ public class Group implements Serializable
 
 		for (int i = 0; i < members.size(); i++)
 		{
-			mut[i] = members.get(i).getBooleanChanges(Alteration.MUTATION);
-			cna[i] = members.get(i).getBooleanChanges(Alteration.COPY_NUMBER);
+			mut[i] = members.get(i).getMutated();
+			cna[i] = members.get(i).getCNAltered();
 			if (cna[i] == null) cna[i] = new boolean[mut[i].length];
 		}
 
@@ -567,19 +525,21 @@ public class Group implements Serializable
 	{
 		List<Integer> order = getPrintOrdering();
 		Map<String, Double> p = calcPVals1();
+		Map<String, Double> p2 = null;
+		if (withMHT) p2 = calcPVals2(p);
 		double score = calcScore();
 		StringBuilder s = new StringBuilder();
 
 		String names = getGeneNamesInString();
 		if (nameConvMap != null) names = replaceNames(names, nameConvMap);
 
-		s.append("[").append(names).append("]\tcover: ").
+		s.append("[").append(names).append("]\tcoverage: ").
 			append(FormatUtil.roundToSignificantDigits(calcCoverage(), 2)).
 			append("\tscore: ").
 			append(FormatUtil.roundToSignificantDigits(score, 2));
 		if (withMHT) s.append("\tcorrected-score: ").
 			append(FormatUtil.roundToSignificantDigits(calcFinalScore(), 2)).
-			append("\ttargets:").append(getTargets());
+			append("\ttargets:").append(getTargetLine(getTargets()));
 
 		for (GeneAlt gene : members)
 		{
@@ -588,7 +548,7 @@ public class Group implements Serializable
 				append("\tp1: ").
 				append(FormatUtil.roundToSignificantDigits(p.get(gene.getId()), 2));
 			if (withMHT) s.append("\tp2: ").
-				append(FormatUtil.roundToSignificantDigits(gene.getPvalOfScore(score), 2));
+				append(FormatUtil.roundToSignificantDigits(p2.get(gene.getId()), 2));
 			if (sa != null)
 			{
 				List<String> subs = sa.getEnrichedSubtypes(gene.getId(), 0.05);
@@ -598,6 +558,22 @@ public class Group implements Serializable
 		return s.toString();
 	}
 
+	private String getTargetLine(List<String> list)
+	{
+		if (list.size() <= 10) return list.toString();
+		else
+		{
+			String s = "[";
+
+			for (int i = 0; i < 10; i++)
+			{
+				s += list.get(i) + ", ";
+			}
+
+			s += "and more]";
+			return s;
+		}
+	}
 
 	private String replaceNames(String names, Map<String, String> convMap)
 	{
@@ -617,8 +593,6 @@ public class Group implements Serializable
 	 */
 	public static void removeSubsets(Collection<Group> groups)
 	{
-		System.out.println("groups before removing subsets = " + groups.size());
-
 		for (Group group : new HashSet<Group>(groups))
 		{
 			group.initSeeds();
@@ -634,8 +608,6 @@ public class Group implements Serializable
 				}
 			}
 		}
-
-		System.out.println("groups after removing subsets = " + groups.size());
 	}
 
 	/**
@@ -682,16 +654,17 @@ public class Group implements Serializable
 	public void fetchTragets(Graph traverse, Map<String, GeneAlt> genesMap)
 	{
 		Set<String> tars = traverse.getLinkedCommonDownstream(new HashSet<String>(getGeneNames()));
+
 		if (!tars.removeAll(getGeneNames()))
 		{
-			targets = sortTargetsToFitAndCocitation(getGeneNames(), new ArrayList<String>(tars),
+			targets = sortTargetsToFit(getGeneNames(), new ArrayList<String>(tars),
 				genesMap);
-			targets = new ArrayList<String>(targets.subList(0, Math.min(targets.size(), 1)));
+//			targets = new ArrayList<String>(targets.subList(0, Math.min(targets.size(), 1)));
 		}
 		else targets = Collections.emptyList();
 	}
 
-	private List<String> sortTargetsToFitAndCocitation(Collection<String> mutex,
+	private List<String> sortTargetsToFit(Collection<String> mutex,
 		Collection<String> comTar, Map<String, GeneAlt> genesMap)
 	{
 		final Map<String, Double> fit = new HashMap<String, Double>();
@@ -706,44 +679,14 @@ public class Group implements Serializable
 			}
 		}
 
-		Map<String, Map<String, Integer>> citMap = new HashMap<String, Map<String, Integer>>();
-
-		for (String gene : mutex)
-		{
-//			citMap.put(gene, coMan.getCocitations(gene));
-			citMap.put(gene, new HashMap<String, Integer>());
-		}
-
 		List<String> sorted = new ArrayList<String>(comTar);
-
-		final Map<String, Integer> citScore = new HashMap<String, Integer>();
-
-		for (String tar : sorted)
-		{
-			citScore.put(tar, 0);
-			for (Map<String, Integer> cits : citMap.values())
-			{
-				if (cits != null && cits.containsKey(tar))
-				{
-					citScore.put(tar, citScore.get(tar) + cits.get(tar));
-				}
-			}
-		}
 
 		Collections.sort(sorted, new Comparator<String>()
 		{
 			@Override
 			public int compare(String o1, String o2)
 			{
-				if (fit.get(o1).equals(fit.get(o2)))
-				{
-					if (citScore.get(o2).equals(citScore.get(o1)))
-					{
-						return o1.compareTo(o2);
-					}
-					else return citScore.get(o2).compareTo(citScore.get(o1));
-				}
-				else return fit.get(o1).compareTo(fit.get(o2));
+			return fit.get(o1).compareTo(fit.get(o2));
 			}
 		});
 

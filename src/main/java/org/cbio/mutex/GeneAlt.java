@@ -18,14 +18,14 @@ import java.util.List;
 public class GeneAlt implements Cloneable, Serializable
 {
 	/**
-	 * Pack of gene alterations.
+	 * Gene ID.
 	 */
-	private AlterationPack gene;
+	String id;
 
 	/**
-	 * Related alteration type.
+	 * The array of alterations.
 	 */
-	private Alteration alt;
+	int[] alterations;
 
 	/**
 	 * Changes array shuffled in a sticky way.
@@ -33,7 +33,7 @@ public class GeneAlt implements Cloneable, Serializable
 	public boolean[] shuf;
 
 	/**
-	 * Changes array.
+	 * Changes array as booleans.
 	 */
 	boolean[] ch;
 
@@ -43,18 +43,7 @@ public class GeneAlt implements Cloneable, Serializable
 	private int altCnt;
 
 	/**
-	 * Negative of changes array.
-	 */
-	private boolean[] neg;
-
-	/**
-	 * A marking for hyper mutated samples. The two boolean arrays ch and neg shouldn't contain data
-	 * for these samples, so their sizes should be smaller.
-	 */
-	private boolean[] hyper;
-
-	/**
-	 * This is the estimated null distribution of group scores with this gene.
+	 * This is the estimated null distribution of p-values.
 	 */
 	List<Double> randScores;
 
@@ -63,47 +52,29 @@ public class GeneAlt implements Cloneable, Serializable
 	 */
 	private List<Double> randScoresSave;
 
-	private static final long serialVersionUID = 466072025998513732L;
+	private static final long serialVersionUID = 2664760285698573701L;
 
 	/**
 	 * Constructor with parameters.
-	 * @param gene pack of gene alterations
-	 * @param alt the type of alteration to use
 	 */
-	public GeneAlt(AlterationPack gene, Alteration alt)
+	public GeneAlt(String[] data)
 	{
-		this(gene, alt, null);
+		this.id = data[0];
+		this.alterations = new int[data.length - 1];
+		for (int i = 0; i < alterations.length; i++)
+		{
+			alterations[i] = Integer.parseInt(data[i + 1]);
+		}
 	}
 
 	/**
-	 * Constructor with parameters.
-	 * @param gene pack of gene alterations
-	 * @param alt the type of alteration to use
+	 * Constructor for subtype cases
+	 * @param pack
 	 */
-	public GeneAlt(AlterationPack gene, Alteration alt, boolean[] hyper)
+	public GeneAlt(AlterationPack pack)
 	{
-		this.gene = gene;
-		this.alt = alt;
-		this.hyper = hyper;
-	}
-
-	/**
-	 * Gets the related change array in the pack.
-	 * @return the related change array
-	 */
-	public Change[] getChanges(Alteration alt)
-	{
-		return crop(gene.get(alt));
-	}
-
-	public AlterationPack getGene()
-	{
-		return gene;
-	}
-
-	public boolean[] getHyper()
-	{
-		return hyper;
+		this.id = pack.getId();
+		this.alterations = convertAlterations(pack, null);
 	}
 
 	/**
@@ -122,35 +93,17 @@ public class GeneAlt implements Cloneable, Serializable
 	 * Gets the sample values in a boolean array.
 	 * @return changes in a boolean array
 	 */
-	public boolean[] getBooleanChanges(Alteration alt)
-	{
-		Change[] ch = getChanges(alt);
-		if (ch == null) return null;
-
-		boolean[] b = new boolean[ch.length];
-		for (int i = 0; i < ch.length; i++)
-		{
-			b[i] = ch[i].isAltered();
-		}
-		return b;
-	}
-
-	/**
-	 * Gets the sample values in a boolean array.
-	 * @return changes in a boolean array
-	 */
 	public boolean[] getBooleanChanges()
 	{
 		if (ch == null)
 		{
 			if (shuf == null)
 			{
-				Change[] c = getChanges(alt);
-				ch = new boolean[c.length];
+				ch = new boolean[alterations.length];
 
-				for (int i = 0; i < c.length; i++)
+				for (int i = 0; i < ch.length; i++)
 				{
-					ch[i] = c[i].isAltered();
+					ch[i] = alterations[i] != 0;
 				}
 			}
 			else
@@ -164,25 +117,35 @@ public class GeneAlt implements Cloneable, Serializable
 		return ch;
 	}
 
+	public boolean[] getMutated()
+	{
+		boolean[] b = new boolean[alterations.length];
+		for (int i = 0; i < b.length; i++)
+		{
+			b[i] = alterations[i] == Letter.MUT.code ||
+				alterations[i] == Letter.AMP_MUT.code ||
+				alterations[i] == Letter.DEL_MUT.code;
+		}
+		return b;
+	}
+
+	public boolean[] getCNAltered()
+	{
+		boolean[] b = new boolean[alterations.length];
+		for (int i = 0; i < b.length; i++)
+		{
+			b[i] = alterations[i] == Letter.AMP.code ||
+				alterations[i] == Letter.DEL.code ||
+				alterations[i] == Letter.AMP_MUT.code ||
+				alterations[i] == Letter.DEL_MUT.code;
+		}
+		return b;
+	}
+
 	public int getAltCnt()
 	{
 		getBooleanChanges();
 		return altCnt;
-	}
-
-	private Change[] crop(Change[] ch)
-	{
-		if (hyper == null || ch == null) return ch;
-		assert ch.length == hyper.length;
-
-		Change[] c = new Change[ArrayUtil.countValue(hyper, false)];
-
-		int k = 0;
-		for (int i = 0; i < hyper.length; i++)
-		{
-			if (!hyper[i]) c[k++] = ch[i];
-		}
-		return c;
 	}
 
 	/**
@@ -191,23 +154,19 @@ public class GeneAlt implements Cloneable, Serializable
 	 */
 	public String getId()
 	{
-		return gene.getId();
+		return id;
 	}
 
 	/**
-	 * Two gene alterations are equal only if the pack and the alteration are equal.
+	 * Two gene alterations are equal only if their ID are equal.
 	 * @param obj the object to check
 	 * @return true if equal
 	 */
 	@Override
 	public boolean equals(Object obj)
 	{
-		if (obj instanceof GeneAlt)
-		{
-			GeneAlt other = (GeneAlt) obj;
-			return gene.equals(other.gene) && alt.equals(other.alt);
-		}
-		return false;
+		return obj instanceof GeneAlt && this.id != null && ((GeneAlt) obj).id != null &&
+			this.id.equals(((GeneAlt) obj).id);
 	}
 
 	/**
@@ -217,7 +176,7 @@ public class GeneAlt implements Cloneable, Serializable
 	@Override
 	public int hashCode()
 	{
-		return gene.hashCode() + alt.hashCode();
+		return id.hashCode();
 	}
 
 	/**
@@ -226,8 +185,7 @@ public class GeneAlt implements Cloneable, Serializable
 	 */
 	public int size()
 	{
-		return getBooleanChanges().length;
-//		return gene.getSize();
+		return alterations.length;
 	}
 
 	/**
@@ -252,50 +210,21 @@ public class GeneAlt implements Cloneable, Serializable
 	{
 		assert new HashSet<Integer>(order).size() == order.size();
 
-		String[] let = getLetterChanges();
-
-		assert getBooleanChanges().length == let.length;
+		Letter[] let = Letter.convertToLetter(alterations);
 
 		StringBuilder buf = new StringBuilder();
 		for (Integer o : order)
 		{
-			buf.append(let[o]);
+			buf.append(let[o].print);
 		}
 		for (int i = 0; i < let.length; i++)
 		{
 			if (!order.contains(i))
-				buf.append(let[i]);
+				buf.append(let[i].print);
 		}
 
 		buf.append("  ").append(getId());
 		return buf.toString();
-	}
-
-	private String[] getLetterChanges()
-	{
-		Change[] c = getChanges(alt);
-		Change[] mut = getChanges(Alteration.MUTATION);
-		Change[] cna = getChanges(Alteration.COPY_NUMBER);
-		if (cna == null)
-		{
-			cna = new Change[mut.length];
-			for (int i = 0; i < cna.length; i++)
-			{
-				cna[i] = Change.NO_CHANGE;
-			}
-		}
-
-		String[] let = new String[c.length];
-
-		for (int i = 0; i < c.length; i++)
-		{
-			let[i] = c[i].isAltered() ? (mut[i].isAltered() ?
-				(cna[i] == Change.ACTIVATING ? "B" : cna[i] == Change.INHIBITING ? "E" : "M") :
-				(cna[i] == Change.ACTIVATING ? "A" : cna[i] == Change.INHIBITING ? "D" : "." ))
-				: ".";
-		}
-
-		return let;
 	}
 
 	public void shuffle()
@@ -309,21 +238,18 @@ public class GeneAlt implements Cloneable, Serializable
 		for (int i = 0; i < bool.length; i++)
 		{
 			ch[i] = bool[i];
-			if (neg != null) neg[i] = !ch[i];
 		}
 	}
 
 	public void unshuffle()
 	{
 		ch = null;
-		neg = null;
 	}
 
 	public void unshuffleSticky()
 	{
 		shuf = null;
 		ch = null;
-		neg = null;
 		randScores = randScoresSave;
 	}
 
@@ -363,13 +289,36 @@ public class GeneAlt implements Cloneable, Serializable
 		return i / (double) randScores.size();
 	}
 
-	public double getMinPval()
+	public static int[] convertAlterations(AlterationPack pack, boolean[] hyper)
 	{
-		return getPvalOfScore(randScores.get(0));
-	}
+		int[] alts = new int[hyper == null ? pack.getSize() : ArrayUtil.countValue(hyper, false)];
 
-	public GeneAlt copy()
-	{
-		return new GeneAlt(gene, alt, hyper);
+		int j = 0;
+		for (int i = 0; i < pack.getSize(); i++)
+		{
+			if (hyper != null && hyper[i])
+			{
+				continue;
+			}
+
+			int code;
+
+			if (pack.get(Alteration.MUTATION)[i].isAltered())
+			{
+				if (pack.get(Alteration.COPY_NUMBER)[i] == Change.ACTIVATING) code = Letter.AMP_MUT.code;
+				else if (pack.get(Alteration.COPY_NUMBER)[i] == Change.INHIBITING) code = Letter.DEL_MUT.code;
+				else code = Letter.MUT.code;
+			}
+			else
+			{
+				if (pack.get(Alteration.COPY_NUMBER)[i] == Change.ACTIVATING) code = Letter.AMP.code;
+				else if (pack.get(Alteration.COPY_NUMBER)[i] == Change.INHIBITING) code = Letter.DEL.code;
+				else code = 0;
+			}
+
+			alts[j++] = code;
+		}
+		assert j == alts.length;
+		return alts;
 	}
 }

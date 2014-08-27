@@ -2,9 +2,7 @@ package org.cbio.mutex;
 
 import org.cbio.causality.data.portal.CBioPortalAccessor;
 import org.cbio.causality.data.portal.CaseList;
-import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
-import org.cbio.causality.util.ArrayUtil;
 import org.cbio.causality.util.FDR;
 import org.cbio.causality.util.FormatUtil;
 import org.cbio.causality.util.Overlap;
@@ -25,46 +23,23 @@ public class SubtypeAligner
 	List<String> names;
 
 	private CBioPortalAccessor portal;
-	private boolean[] hypermuts;
-
-	public SubtypeAligner(PortalDataset dataset, List<Group> groups, boolean[] hypers) throws IOException
-	{
-		this.dataset = dataset;
-		this.genes = new HashMap<String, GeneAlt>();
-
-		for (Group group : groups)
-		{
-			for (GeneAlt member : group.members)
-			{
-				genes.put(member.getId(), member);
-			}
-		}
-
-		this.groups = groups;
-		this.portal = PortalReader.getPortalAccessor(dataset);
-		this.hypermuts = hypers;
-		calcEnrichments();
-	}
-
 
 	public SubtypeAligner(PortalDataset dataset, Collection<String> genes) throws IOException
 	{
 		this.dataset = dataset;
+
+		PortalReader pr = new PortalReader(dataset);
+		Map<String, AlterationPack> map = pr.readAlterationsFromPortal(genes);
 		this.genes = new HashMap<String, GeneAlt>();
 
-		PortalReader pr = new PortalReader();
-		Map<String,AlterationPack> packs = pr.readAlterations(dataset, genes);
-//		hypermuts = AltDistr.getOutlierAltered(packs.values());
-
-		for (AlterationPack pack : packs.values())
+		for (String id : map.keySet())
 		{
-			this.genes.put(pack.getId(), new GeneAlt(pack, Alteration.GENOMIC, null));
+			this.genes.put(id, new GeneAlt(map.get(id)));
 		}
 
 		this.portal = PortalReader.getPortalAccessor(dataset);
 		calcEnrichments();
 	}
-
 
 
 	public void calcEnrichments() throws IOException
@@ -79,7 +54,6 @@ public class SubtypeAligner
 			names.add(subtype);
 
 			boolean[] sub = getSubtypeLoc(dataset.subtypeCases[i]);
-			sub = trimToNonHyper(sub);
 
 			Map<String, Double> pvals = new HashMap<String, Double>();
 			for (String geneName : genes.keySet())
@@ -116,7 +90,6 @@ public class SubtypeAligner
 		for (int i = 0; i < dataset.subtypeCases.length; i++)
 		{
 			boolean[] sub = getSubtypeLoc(dataset.subtypeCases[i]);
-			sub = trimToNonHyper(sub);
 
 			for (Group group : groups)
 			{
@@ -208,21 +181,6 @@ public class SubtypeAligner
 		});
 
 		return types;
-	}
-
-	private boolean[] trimToNonHyper(boolean[] sub)
-	{
-		if (hypermuts == null) return sub;
-		assert sub.length == hypermuts.length;
-
-		int size = ArrayUtil.countValue(hypermuts, false);
-		boolean[] b = new boolean[size];
-		int i = 0;
-		for (int j = 0; j < sub.length; j++)
-		{
-			if (!hypermuts[j]) b[i++] = sub[j];
-		}
-		return b;
 	}
 
 	public String getMostEnrichedSubtype(String gene, double thr)

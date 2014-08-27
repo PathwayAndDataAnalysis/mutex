@@ -1,7 +1,5 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.model.Alteration;
-import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.util.Overlap;
 
 import java.io.BufferedWriter;
@@ -21,23 +19,11 @@ public class PairSearcher
 
 	/**
 	 * Constructor with network and alterations.
-	 * @param packs alterations
 	 */
-	public PairSearcher(Map<String, AlterationPack> packs)
+	public PairSearcher(Map<String, GeneAlt> genes)
 	{
-		this.genes = new HashMap<String, GeneAlt>();
-
-		for (String s : new HashSet<String>(packs.keySet()))
-		{
-			AlterationPack pack = packs.get(s);
-
-			GeneAlt gene = new GeneAlt(pack, Alteration.GENOMIC, null);
-			this.genes.put(gene.getId(), gene);
-		}
-
-		System.out.println("filtered to min alt = " + this.genes.size());
+		this.genes = genes;
 	}
-
 
 	public void search(String filename, Map<String, String> labelMap) throws IOException
 	{
