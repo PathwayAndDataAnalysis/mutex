@@ -6,10 +6,9 @@
 
 	<groupId>org.cbio</groupId>
 	<artifactId>mutex</artifactId>
-	<version>1</version>
+	<version>1.0.0</version>
 
 	<properties>
-		<paxtools.version>4.2.0-SNAPSHOT</paxtools.version>
 		<causality.version>[0,]</causality.version>
 	</properties>
 
@@ -66,7 +65,7 @@
 						</descriptorRefs>
 						<archive>
 							<manifest>
-								<mainClass>org.cbio.mutex.MutexGreedySearcher</mainClass>
+								<mainClass>org.cbio.mutex.Main</mainClass>
 								<addClasspath>true</addClasspath>
 							</manifest>
 						</archive>

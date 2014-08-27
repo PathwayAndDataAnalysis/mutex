@@ -1,264 +1,244 @@
 package org.cbio.mutex;
 
-import org.biopax.paxtools.pattern.miner.SIFEnum;
-import org.cbio.causality.analysis.Graph;
-import org.cbio.causality.analysis.SIFLinker;
 import org.cbio.causality.data.GeneCards;
-import org.cbio.causality.data.portal.BroadAccessor;
-import org.cbio.causality.model.Alteration;
-import org.cbio.causality.model.AlterationPack;
-import org.cbio.causality.model.Change;
-import org.cbio.causality.network.PathwayCommons;
-import org.cbio.causality.network.SPIKE;
-import org.cbio.causality.network.SignaLink;
-import org.cbio.causality.util.Histogram;
-import org.cbio.causality.util.Overlap;
-import org.cbio.causality.util.Summary;
+import org.cbio.causality.util.FDR;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 /**
  * This is the main executor class of the mutex search.
+ *
  * @author Ozgun Babur
  */
 public class Main
 {
-	public static final PortalDataset data = PortalDataset.GBM;
-	public static final double MIN_ALTERATION_THR = data.minAltThr;
-	public static final double FDR_THR = 0.05;
-	public static final int MAX_GROUP_SIZE = 10;
-	public static final int RANDOMIZATION_TRIALS1 = 10000;
-	public static final int RANDOMIZATION_TRIALS2 = 1000;
+	/**
+	 * False discovery rate threshold.
+	 */
+	public static double fdrThr = -1;
 
-	public static final boolean REMOVE_HYPERMUTATED_OUTLIERS = true;
-	public static final boolean LIMIT_TO_MUTSIG_AND_GISTIC_GENES = false;
-	public static final boolean CROP_GRAPH_TO_MUTSIG_GISTIC_NEIGH = true;
+	/**
+	 * Maximum group size to use during the searches.
+	 */
+	public static int maxGroupSize = 5;
 
-	// For debug purposes
-	public static final boolean LOAD_RESULTS_FROM_FILE = false;
-	public static final boolean JUST_WRITE_THE_INPUT_DATA = false;
+	/**
+	 * Maximum number of iterations for estimating the null distribution of initial p-values.
+	 */
+	public static int randIter1 = 10000;
+
+	/**
+	 * Number of iterations to estimate the null distribution of final group scores.
+	 */
+	public static int randIter2 = 100;
+
+	/**
+	 * Directory that contains parameters file.
+	 */
+	private static String dir;
+
+	/**
+	 * Whether to reduce the search space using signaling networks.
+	 */
+	private static boolean useGraph = true;
+
+	/**
+	 * The null distributions are cached after a run. The cache will be ignored if this parameter
+	 * is set to true.
+	 */
+	private static boolean ignoreCache = false;
+
+	/**
+	 * The name of the tab-delimited file containing gene alterations.
+	 */
+	private static String dataFileName;
+
+	/**
+	 * Name of the signaling network file. No need to specify this to use the default network.
+	 */
+	private static String networkFilename;
+
+	/**
+	 * The signaling network.
+	 */
+	private static Network network;
+
+	/**
+	 * Users can limit the search to certain genes using this file.
+	 */
+	private static String symbolsFile;
+
+	/**
+	 * While producing results, if there is an available sub-typing information, nodes are
+	 * highlighted according to the subtype.
+	 */
+	private static String subtypeDatasetName;
+
+	/**
+	 * Keywords associated with the dataset, separated by comma.
+	 */
+	private static String literatureKeywords;
 
 	public static void main(String[] args) throws IOException, ClassNotFoundException
 	{
-		search();
-//		checkAGroup();
-	}
-
-	public static void search() throws IOException, ClassNotFoundException
-	{
-		System.out.println("Dataset: " + data.study);
-
-		// load the network
-
-		Graph graphSig = loadPTRGraph();
-		Graph graphTR = loadTRGraph();
-
-		Graph graph = getGraph(graphSig, graphTR);
-		Set<String> symbols = decideSymbols(graph);
-
-		// load the alteration data
-		Map<String, AlterationPack> genesMap;
-		if (data.name.equals("simulated"))
+		if (args.length < 1)
 		{
-			genesMap = Simulation.loadSimData(symbols, data);
+			displayHelp();
+			return;
+		}
+		dir = args[0];
+		if (!dir.endsWith(File.separator)) dir += File.separator;
+
+		if (!loadParameters()) System.exit(1);
+
+		if (useGraph) network = networkFilename == null ?
+			new Network() : new Network(networkFilename);
+
+		if (args.length > 1 && args[1].equals("random"))
+		{
+			int howMany = 1;
+
+			if (args.length > 2)
+			{
+				howMany = Integer.parseInt(args[2]);
+				System.out.println("howMany = " + howMany);
+			}
+
+			generateRamdomRun(howMany);
 		}
 		else
 		{
-			genesMap = readPortal(symbols);
+			search();
 		}
+	}
 
-		String groupsFilename = "result/" + data.study + ".groups";
+	public static void reset()
+	{
+		fdrThr = -1;
+		maxGroupSize = 5;
+		randIter1 = 10000;
+		randIter2 = 100;
+		dir = null;
+		useGraph = true;
+		ignoreCache = false;
+		dataFileName = null;
+		networkFilename = null;
+		network = null;
+		symbolsFile = null;
+		subtypeDatasetName = null;
+		literatureKeywords = null;
+	}
 
-		if (data == PortalDataset.SKCM ||
-			data == PortalDataset.LUAD ||
-//			data == PortalDataset.OV ||
-			data == PortalDataset.LUSC)
-			applyMutsigThreshold(genesMap, 0.05);
+	/**
+	 * Makes a run for generating the null distribution of final group scores.
+	 * @param howMany number of iterations for this run
+	 * @throws IOException
+	 */
+	public static void generateRamdomRun(int howMany) throws IOException
+	{
+		// load the alteration data
+		Map<String, GeneAlt> genesMap = loadAlterations();
 
-//		printDatasetCharacteristics(genesMap);
+		MutexGreedySearcher searcher = new MutexGreedySearcher(genesMap, network);
+		Set<String> symbols = genesMap.keySet();
+		generateRandomPvals(searcher, symbols, null, howMany);
+	}
 
-		MutexGreedySearcher searcher = LOAD_RESULTS_FROM_FILE ?
-			MutexGreedySearcher.deserialize(groupsFilename) :
-			new MutexGreedySearcher(graph, genesMap, MIN_ALTERATION_THR, REMOVE_HYPERMUTATED_OUTLIERS);
+	/**
+	 *
+	 * @throws IOException
+	 * @throws ClassNotFoundException
+	 */
+	public static void search() throws IOException, ClassNotFoundException
+	{
+		System.out.println("----------------------------------------\n");
+		System.out.println("Directory = " + dir);
 
-		if (JUST_WRITE_THE_INPUT_DATA)
+		// load the alteration data
+		Map<String, GeneAlt> genesMap = readCache();
+		if (genesMap == null) genesMap = loadAlterations();
+
+		System.out.println("Number of genes = " + genesMap.size());
+		System.out.println("Number of samples = " + genesMap.values().iterator().next().size());
+
+		MutexGreedySearcher searcher = new MutexGreedySearcher(genesMap, network);
+
+		Set<String> symbols = genesMap.keySet();
+
+		Map<String, Group> groupsOfSeeds = searcher.getGroupsOfSeeds(symbols, maxGroupSize,
+			randIter1);
+		cacheData(genesMap);
+
+		writeRankedGroups(groupsOfSeeds);
+
+		// we are done if we won't cutoff from an fdr
+		if (randIter2 <= 0) return;
+
+		// Load and/or generate final scores null distribution
+		List<Double> nullDist = new ArrayList<Double>();
+		int cnt = readRandomPvals(nullDist);
+		if (cnt < randIter2) generateRandomPvals(searcher, symbols, nullDist, randIter2 - cnt);
+
+		// Apply FDR cutoff
+		Map<String, Double> resultScores = new HashMap<String, Double>();
+		for (String id : groupsOfSeeds.keySet())
 		{
-			searcher.serialize("cache-" + data.study);
-			return;
+			resultScores.put(id, groupsOfSeeds.get(id).calcFinalScore());
 		}
 
-		if (false)
+		double bestFDR = decideBestFDR(resultScores, nullDist, randIter2);
+		if (fdrThr < 0) fdrThr = bestFDR;
+
+		System.out.println("Selected FDR = " + fdrThr);
+		if (fdrThr < 0) return;
+
+		List<String> selectedSeeds = FDR.select(resultScores, fdrThr, nullDist, randIter2);
+
+		// Find threshold score
+		double thrScore = 0;
+		for (String seed : selectedSeeds)
 		{
-//			MutexSimpleRanker msr = new MutexSimpleRanker(genesMap);
-//			msr.search("ranks-v1.txt", Simulation.extractGroupSize(data), Simulation.getLabelMap(data, genesMap));
-
-			PairSearcher ps = new PairSearcher(genesMap);
-			ps.search("pairs-v3.txt", Simulation.getLabelMap(data, genesMap));
-
-//			searcher.writeRankedGroups(MAX_GROUP_SIZE, RANDOMIZATION_TRIALS1, Simulation.getLabelMap(data, genesMap), "mutex-ranked-groups-v3-nograph.txt");
-			return;
+			if (resultScores.get(seed) > thrScore) thrScore = resultScores.get(seed);
 		}
 
-		List<Group> groups;
+		List<Group> groups = new ArrayList<Group>(selectedSeeds.size());
+		for (String seed : selectedSeeds)
+		{
+			Group group = groupsOfSeeds.get(seed);
+			if (useGraph) group.fetchTragets(network, genesMap);
+			groups.add(group);
+		}
 
-		// greedy search for the upstream of each gene
-		groups = searcher.search(FDR_THR, MAX_GROUP_SIZE, RANDOMIZATION_TRIALS1,
-			RANDOMIZATION_TRIALS2, data.study, LOAD_RESULTS_FROM_FILE ? null : groupsFilename);
+		System.out.println("Number of mutex groups in results = " + groups.size());
+
+		// clean subsets in the result
+		Group.removeSubsets(groups);
+
+		System.out.println("Groups after removing subsets = " + groups.size());
 
 		// sort the list favoring high-coverage
 		Group.sortToCoverage(groups);
-		searcher.addOmitted();
 
-//		groups = Simulation.getTrueGroups(data, searcher);
-
-		SIFLinker linker = new SIFLinker();
-		linker.load(graphSig);
-		linker.load(graphTR);
-
-		SubtypeAligner sa =
-		data == PortalDataset.BRCA ? new SubtypeAligner(PortalDataset.BRCA_PUB, Group.collectGenes(groups)) :
-		data == PortalDataset.GBM ? new SubtypeAligner(PortalDataset.GBM_PUB, Group.collectGenes(groups)) :
-		data.name.equals("simulated") ? null : new SubtypeAligner(data, groups, searcher.getHyper());
+		SubtypeAligner sa = subtypeDatasetName == null ? null :
+			new SubtypeAligner(PortalDataset.find(subtypeDatasetName), Group.collectGenes(groups));
 
 		// Write the output graph to visualize in ChiBE
-		GraphWriter.write(groups, searcher.getGenes(), linker, "result/", data.study, sa);
-		Map<String, String> nameConvMap = data.name.equals("simulated") ?
-			Simulation.getLabelMap(data, genesMap) : null;
+		if (useGraph) GraphWriter.write(groups, genesMap, network, dir, dataFileName, sa);
+
+		System.out.println("\nMutex groups\n------------\n");
 
 		// Print textual results
 		for (Group group : groups)
 		{
-			System.out.println(group.getPrint(sa, nameConvMap, true) + "\n");
+			System.out.println(group.getPrint(sa, null, true) + "\n");
 		}
 
-		System.out.println();
-		printOverlappingCNA(groups, genesMap);
-		System.out.println();
-
-		if (data.name.equals("simulated")) Simulation.evaluateSuccess(groups, data, genesMap);
-		else printAnnotations(getGenes(groups, genesMap));
-
-//		Oncoprint onco = new Oncoprint(groups, data);
-//		onco.write();
-	}
-
-	private static Set<String>  decideSymbols(Graph graph) throws FileNotFoundException
-	{
-		// Filter gens to mutsig and gistic
-		Set<String> symbols = graph.getSymbols();
-		System.out.println("symbols initial size = " + symbols.size());
-
-		if (LIMIT_TO_MUTSIG_AND_GISTIC_GENES)
-		{
-			GeneFilterer.filterToMutsigAndGistic(symbols, data, 0.05);
-			System.out.println("symbols size filtered by mutsig and gistic = " + symbols.size());
-		}
-
-		if (CROP_GRAPH_TO_MUTSIG_GISTIC_NEIGH)
-		{
-			Set<String> syms = new HashSet<String>(symbols);
-
-			if (data == PortalDataset.SIMUL1)
-			{
-//				syms = SimulatedDataGenerator.getMutsig();
-			}
-			else GeneFilterer.filterToMutsigAndGistic(syms, data, 0.05);
-
-			Set<String> neighbors = graph.getNeighbors(syms);
-			Set<String> downstream = graph.getDownstream(syms);
-			Set<String> upOfDown = graph.getUpstream(downstream);
-
-			syms.addAll(neighbors);
-			syms.addAll(upOfDown);
-
-			graph.crop(syms);
-			symbols = graph.getSymbols();
-			System.out.println("symbols cropped size = " + symbols.size());
-		}
-
-//		if (data == PortalDataset.SKCM)
-//		{
-//			GeneFilterer.filterToMutsigAndGistic(symbols, data, 0.05);
-//			System.out.println("symbols size filtered by mutsig and gistic = " + symbols.size());
-//		}
-
-		return symbols;
-	}
-
-	public static Graph getGraph()
-	{
-		return getGraph(loadPTRGraph(), loadTRGraph());
-	}
-
-	public static Graph getGraph(Graph graphSig, Graph graphTR)
-	{
-		Graph graph = new Graph("directed network", "is-upstream-of");
-		graph.merge(graphSig);
-		graph.merge(graphTR);
-		return graph;
-	}
-
-	private static Graph loadTRGraph()
-	{
-		Graph graphTR = new Graph("transcriptional regulation", SIFEnum.CONTROLS_EXPRESSION_OF.getTag());
-		graphTR.merge(PathwayCommons.getGraph(SIFEnum.CONTROLS_EXPRESSION_OF));
-		graphTR.merge(SPIKE.getGraphTR());
-		graphTR.merge(SignaLink.getGraphTR());
-		return graphTR;
-	}
-
-	private static Graph loadPTRGraph()
-	{
-		Graph graphSig = new Graph("signaling", SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag());
-		graphSig.merge(PathwayCommons.getGraph(SIFEnum.CONTROLS_STATE_CHANGE_OF));
-		graphSig.merge(SPIKE.getGraphPostTl());
-		graphSig.merge(SignaLink.getGraphPostTl());
-		return graphSig;
-	}
-
-	private static Map<String, AlterationPack> readPortal(Set<String> symbols) throws IOException
-	{
-		// load the alteration data
-		PortalReader reader = new PortalReader();
-		Map<String, AlterationPack> genesMap = reader.readAlterations(data, symbols);
-		for (String s : new HashSet<String>(genesMap.keySet()))
-		{
-			if (!symbols.contains(s)) genesMap.remove(s);
-		}
-		return genesMap;
-	}
-
-
-	public static void checkAGroup() throws IOException
-	{
-		Set<String> symbols = new HashSet<String>(Arrays.asList("ERBB2", "IGF1R", "PTEN", "PIK3CA", "AKT1"));
-
-		// load the alteration data
-		Map<String, AlterationPack> genesMap = readPortal(symbols);
-
-		List<GeneAlt> genes = new ArrayList<GeneAlt>(genesMap.size());
-		for (AlterationPack pack : genesMap.values())
-		{
-			genes.add(new GeneAlt(pack, Alteration.GENOMIC));
-		}
-
-		Group group = new Group(genes.get(0));
-		for (int i = 1; i < genes.size(); i++)
-		{
-			group.addGene(genes.get(i));
-		}
-
-		System.out.println("[" + group.getGeneNamesInString() + "]\tcover: " +
-			group.calcCoverage() + "\tpval: " + group.calcScore() + "\ttargets:" +
-			group.getTargets());
-
-		System.out.println(group.getPrint());
+		if (literatureKeywords != null) printAnnotations(getGenes(groups, genesMap));
 	}
 
 	private static List<String> getGenes(List<Group> groups,
-		final Map<String, AlterationPack> genesMap)
+		final Map<String, GeneAlt> genesMap)
 	{
 		Set<String> genes = new HashSet<String>();
 		for (Group group : groups)
@@ -272,24 +252,31 @@ public class Main
 			@Override
 			public int compare(String o1, String o2)
 			{
-				return new Integer(genesMap.get(o2).getAlteredCount(Alteration.GENOMIC)).compareTo(
-					genesMap.get(o1).getAlteredCount(Alteration.GENOMIC));
+				return new Integer(genesMap.get(o2).getAltCnt()).compareTo(
+					genesMap.get(o1).getAltCnt());
 			}
 		});
 
 		return list;
 	}
 
-	private static void printAnnotations(List<String> genes)
+	public static void printAnnotations(List<String> genes)
 	{
-		System.out.println("Genes in groups: " + genes.size());
+		System.out.println("Number genes in mutex groups = " + genes.size());
 		System.out.println(genes + "\n");
 
-		String keyword = data.name;
+		String[] kywd = literatureKeywords.split(",");
+		for (int i = 0; i < kywd.length; i++)
+		{
+			kywd[i] = kywd[i].trim();
+		}
 
 		List<String> withKw = new ArrayList<String>();
 		List<String> withOtherCancer = new ArrayList<String>(genes);
 		List<String> notAssoc = new ArrayList<String>();
+
+		System.out.println("Reported cancer associations in GeneCards database\n" +
+			"--------------------------------------------------\n");
 
 		for (String gene : genes)
 		{
@@ -298,7 +285,7 @@ public class Main
 			for (String cancer : relatedCancers)
 			{
 				System.out.print(cancer + ", ");
-				if (cancer.contains(keyword) && !withKw.contains(gene)) withKw.add(gene);
+				if (contains(cancer, kywd) && !withKw.contains(gene)) withKw.add(gene);
 			}
 			System.out.println();
 			if (relatedCancers.isEmpty()) notAssoc.add(gene);
@@ -306,137 +293,311 @@ public class Main
 		withOtherCancer.removeAll(withKw);
 		withOtherCancer.removeAll(notAssoc);
 
-		System.out.println("\nAlready associated with " + keyword + " cancer: " + withKw.size());
+		System.out.println("\nClassification summary\n----------------------");
+
+		System.out.println("\nAlready associated with \"" + literatureKeywords + "\": " + withKw.size());
 		System.out.println(withKw);
 		System.out.println("\nAssociated with other types of cancer: " + withOtherCancer.size());
 		System.out.println(withOtherCancer);
 		System.out.println("\nNot associated with any cancer: " + notAssoc.size());
 		System.out.println(notAssoc);
+		System.out.println("\n\n");
 	}
 
-	public static void printDatasetCharacteristics(Map<String, AlterationPack> genesMap)
+	private static boolean contains(String s, String[] q)
 	{
-		int sampleSize = genesMap.values().iterator().next().getSize();
-		int geneSize = genesMap.size();
-		double log2 = Math.log(2);
-
-		int[] cnt = new int[sampleSize];
-		for (AlterationPack pack : genesMap.values())
+		for (String x : q)
 		{
-			for (int i = 0; i < sampleSize; i++)
+			if (!s.isEmpty() && s.contains(x)) return true;
+		}
+		return false;
+	}
+
+	private static void displayHelp()
+	{
+		System.out.println("Please provide the directory that contains the parameters.txt file " +
+			"as the first program argument. In this file, the parameter keys and the values " +
+			"should be separated with the = sign. parameters.txt file can contain the below " +
+			"parameters:\n\n");
+
+		System.out.println("data-file: Name of the data file. Mandatory.\n\n" +
+			"max-group-size: The maximum size of a result mutex group. Integer value. Default is 5.\n\n" +
+			"first-level-random-iteration: Number of randomization to estimate null distribution of member p-values in mutex groups. Integer. Default is 10000.\n\n" +
+			"second-level-random-iteration: Number of runs to estimate the null distribution of final scores. Integer. Default is 100. If FDR control on results is not required and only the ranking of the result groups is sufficient, set this parameter to 0.\n\n" +
+			"fdr-cutoff: Users can select a specific FDR cutoff. When not provided, or when set to a negative value, the FDR cutoff that maximizes the expected value of true positives - false positives is used.\n\n" +
+			"search-on-signaling-network: Whether to reduce the search space using the signaling network. true or false. Default is true.\n\n" +
+			"ignore-cache: After a run, the null distribution estimates of gene p-values are cached to a file named data-cache. To ignore this cache in the later run, set this parameter to false. Alternatively, you can delete or rename the cache file.\n\n" +
+			"genes-file: This parameter can be used to limit the search to a subset of genes. The file should contain a gene symbol per line.\n\n" +
+			"network-file: To customize the signaling network, users can use this parameter. The tab-delimited network file should contain 3 columns (Gene Symbol 1, interaction-type, Gene Symbol 2).");
+	}
+
+	private static void cacheData(Map<String, GeneAlt> geneMap) throws IOException
+	{
+		ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(dir + "data-cache"));
+		out.writeObject(geneMap);
+		out.close();
+	}
+
+	private static Map<String, GeneAlt> readCache() throws IOException, ClassNotFoundException
+	{
+		File file = new File(dir + "data-cache");
+		if (!ignoreCache && file.exists())
+		{
+			ObjectInputStream in = new ObjectInputStream(new FileInputStream(file));
+			Map<String, GeneAlt> map = (Map<String, GeneAlt>) in.readObject();
+			in.close();
+			return map;
+		}
+		return null;
+	}
+
+	protected static Map<String, GeneAlt> loadAlterations() throws IOException
+	{
+		Map<String, GeneAlt> map = new HashMap<String, GeneAlt>();
+		BufferedReader reader = new BufferedReader(new FileReader(dataFileName));
+
+		// skip header
+		reader.readLine();
+
+		for (String line = reader.readLine(); line != null; line = reader.readLine())
+		{
+			String[] token = line.split("\t");
+			GeneAlt gene = new GeneAlt(token);
+			map.put(gene.id, gene);
+		}
+
+		reader.close();
+		crop(map);
+
+		return map;
+	}
+
+	private static void crop(Map<String, GeneAlt> map) throws FileNotFoundException
+	{
+		if (symbolsFile == null) return;
+
+		Set<String> symbols = new HashSet<String>();
+
+		Scanner sc = new Scanner(new File(symbolsFile));
+		while (sc.hasNextLine())
+		{
+			String line = sc.nextLine();
+			if (line.startsWith("#")) continue;
+			for (String s : line.split("\\s+"))
 			{
-				if (pack.get(Alteration.GENOMIC)[i].isAltered()) cnt[i]++;
+				if (!s.isEmpty()) symbols.add(s);
 			}
 		}
 
-		for (int i = 0; i < cnt.length; i++)
+		Set<String> remove = new HashSet<String>(map.keySet());
+		remove.removeAll(symbols);
+		for (String symbol : remove)
 		{
-			if (cnt[i] == 0) cnt[i]++;
+			map.remove(symbol);
 		}
-
-		double[] sampleCov = new double[sampleSize];
-		List<Double> geneCov = new ArrayList<Double>();
-
-		double range = 0.5;
-		Histogram h1 = new Histogram(range);
-		h1.setBorderAtZero(true);
-		for (int i = 0; i < sampleSize; i++)
-		{
-			double rat = Math.log(cnt[i] / (double) geneSize) / log2;
-			h1.count(rat);
-			sampleCov[i] = rat;
-		}
-		System.out.println("Sample coverage:");
-		h1.print();
-
-		System.out.println("Summary.mean(sampleCov) = " + Summary.mean(sampleCov));
-		System.out.println("Summary.stdev(sampleCov) = " + Summary.stdev(sampleCov));
-
-		Histogram h2 = new Histogram(range);
-		h2.setBorderAtZero(true);
-		for (AlterationPack pack : genesMap.values())
-		{
-			if (!pack.isAltered()) continue;
-			double rat = Math.log(pack.getAlteredRatio(Alteration.GENOMIC)) / log2;
-			h2.count(rat);
-			geneCov.add(rat);
-		}
-		System.out.println("Gene coverage:");
-		h2.print();
-
-		double[] v = new double[geneCov.size()];
-		for (int i = 0; i < v.length; i++)
-		{
-			v[i] = geneCov.get(i);
-		}
-		System.out.println("Summary.mean(geneCov) = " + Summary.mean(v));
-		System.out.println("Summary.stdev(geneCov) = " + Summary.stdev(v));
-
-		System.exit(0);
 	}
 
-	private static void applyMutsigThreshold(Map<String, AlterationPack> genes, double pvalThr)
+	/**
+	 * Writes ordered mutex groups in a file.
+	 */
+	private static void writeRankedGroups(Map<String, Group> groupMap) throws IOException
 	{
-		String study = data.caseList.substring(0, data.caseList.indexOf("_")).toUpperCase();
-		Set<String> mutsig = BroadAccessor.getMutsigGenes(study, pvalThr, false);
-		for (AlterationPack pack : genes.values())
+		final Map<String, Double> scoreMap = new HashMap<String, Double>();
+		for (String id : groupMap.keySet())
 		{
-			if (!mutsig.contains(pack.getId()))
+			scoreMap.put(id, groupMap.get(id).calcFinalScore());
+		}
+
+		List<String> sorted = new ArrayList<String>(groupMap.keySet());
+		Collections.sort(sorted, new Comparator<String>()
+		{
+			@Override
+			public int compare(String o1, String o2)
 			{
-				for (int i = 0; i < pack.getSize(); i++)
+				return scoreMap.get(o1).compareTo(scoreMap.get(o2));
+			}
+		});
+
+		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + "ranked-groups.txt"));
+
+		writer.write("Score\tMembers");
+		for (String seed : sorted)
+		{
+			Group group = groupMap.get(seed);
+
+			writer.write("\n" + group.calcFinalScore());
+
+			for (String name : group.getGeneNames())
+			{
+				writer.write("\t" + name);
+			}
+		}
+
+		writer.close();
+	}
+
+	private static int readRandomPvals(List<Double> vals) throws FileNotFoundException
+	{
+		String directory = dir + "randscores/";
+		File d = new File(directory);
+		if (!d.exists()) d.mkdirs();
+
+		int cnt = 0;
+		for (File file : new File(directory).listFiles())
+		{
+			if (file.getName().endsWith(".txt"))
+			{
+				Scanner sc = new Scanner(file);
+				while (sc.hasNextLine())
 				{
-					pack.get(Alteration.MUTATION)[i] = Change.NO_CHANGE;
+					String line = sc.nextLine();
+					if (!line.isEmpty()) vals.add(new Double(line));
 				}
-
-				pack.complete(Alteration.GENOMIC);
 			}
+			cnt++;
+
+			if (cnt == randIter2) break;
+		}
+		return cnt;
+	}
+
+	private static void generateRandomPvals(MutexGreedySearcher searcher, Set<String> genes,
+		List<Double> vals, int howMany) throws IOException
+	{
+		String directory = dir + "randscores/";
+		File d = new File(directory);
+		if (!d.exists()) d.mkdirs();
+
+		for (int i = 0; i < howMany; i++)
+		{
+			System.out.println("iteration = " + (i + 1));
+			List<Double> list = searcher.generateRandPvals(genes, maxGroupSize, randIter1);
+			if (vals != null) vals.addAll(list);
+
+			Collections.sort(list);
+			BufferedWriter writer = new BufferedWriter(new FileWriter(directory + "/randfile-" +
+				System.currentTimeMillis() + "-" + new Random().nextInt(1000) + ".txt"));
+
+			for (Double v : list)
+			{
+				writer.write(v + "\n");
+			}
+
+			writer.close();
 		}
 	}
 
-	private static void printOverlappingCNA(List<Group> groups, Map<String, AlterationPack> packMap)
+	public static double decideBestFDR(final  Map<String,  Double>  results,
+		List<Double>  randomized, int randMultiplier) throws IOException
 	{
-		List<Set<String>> list = new ArrayList<Set<String>>();
-		Set<String> genes = new HashSet<String>();
-		for (Group group : groups)
-		{
-			genes.addAll(group.getGeneNames());
-		}
-		for (String gene : genes)
-		{
-			list.add(new HashSet<String>(Arrays.asList(gene)));
-		}
+		double bestFDR = -1;
+		double maxScore = -Double.MAX_VALUE;
 
-		for (String gene : genes)
-		{
-			AlterationPack pack1 = packMap.get(gene);
-			if (pack1.get(Alteration.COPY_NUMBER) == null) continue;
+		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + "fdr-guide.txt"));
 
-			for (Set<String> group : list)
+		writer.write("cutoff-val\tResult size\tFDR\tExpected true positives (tp)\tExpected false positives (fp)\ttp-fp");
+		for (int i = 1; i <= 50; i++)
+		{
+			double fdr = i / 100D;
+			List<String> select = FDR.select(results, fdr, randomized, randMultiplier);
+			double tp = select.size() * (1 - fdr);
+			double fp = select.size() * fdr;
+			double score = tp - fp;
+
+			double cutoffVal = -1;
+			for (String s : select)
 			{
-				if (!group.contains(gene))
-				{
-					boolean allFit = true;
-					for (String g2 : group)
-					{
-						AlterationPack pack2 = packMap.get(g2);
-						if (pack2.get(Alteration.COPY_NUMBER) == null ||
-							Overlap.calcCoocPval(pack1.get(Alteration.COPY_NUMBER),
-								pack2.get(Alteration.COPY_NUMBER)) > 0.001)
-						{
-							allFit = false;
-							break;
-						}
-					}
-					if (allFit) group.add(gene);
-				}
+				if (results.get(s) > cutoffVal) cutoffVal = results.get(s);
+			}
+
+			if (score >= maxScore)
+			{
+				maxScore = score;
+				bestFDR = fdr;
+			}
+
+			writer.write("\n" + cutoffVal + "\t" + select.size() + "\t" + fdr + "\t" + tp + "\t" +
+				fp + "\t" + (tp - fp));
+		}
+		writer.close();
+
+		if (bestFDR == 0.5) return -1;
+
+		return bestFDR;
+	}
+
+	private static boolean loadParameters() throws FileNotFoundException
+	{
+		File file = new File(dir + "parameters.txt");
+		if (!file.exists() || file.isDirectory())
+		{
+			System.err.println("The file \"parameters.txt\" does not exist.");
+			return false;
+		}
+
+		try{
+		Scanner sc = new Scanner(file);
+		while (sc.hasNextLine())
+		{
+			String line = sc.nextLine();
+			if (line.startsWith("#")) continue;
+			String[] token = line.split("=");
+
+			if (token.length < 2) continue;
+
+			for (int i = 0; i < token.length; i++) token[i] = token[i].trim();
+
+			if (token[0].equals("fdr-cutoff"))
+			{
+				fdrThr = Double.parseDouble(token[1]);
+			}
+			else if (token[0].equals("max-group-size"))
+			{
+				maxGroupSize = Integer.parseInt(token[1]);
+			}
+			else if (token[0].equals("first-level-random-iteration"))
+			{
+				randIter1 = Integer.parseInt(token[1]);
+			}
+			else if (token[0].equals("second-level-random-iteration"))
+			{
+				randIter2 = Integer.parseInt(token[1]);
+			}
+			else if (token[0].equals("data-file"))
+			{
+				dataFileName = dir + token[1];
+			}
+			else if (token[0].equals("search-on-signaling-network"))
+			{
+				useGraph = Boolean.parseBoolean(token[1]);
+			}
+			else if (token[0].equals("genes-file"))
+			{
+				symbolsFile = dir + token[1];
+			}
+			else if (token[0].equals("network-file"))
+			{
+				networkFilename = dir + token[1];
+			}
+			else if (token[0].equals("dataset-for-subtype"))
+			{
+				subtypeDatasetName = token[1];
+			}
+			else if (token[0].equals("ignore-cache"))
+			{
+				ignoreCache = Boolean.parseBoolean(token[1]);
+			}
+			else if (token[0].equals("keywords"))
+			{
+				literatureKeywords = token[1];
 			}
 		}
-
-		Set<Set<String>> ss = new HashSet<Set<String>>(list);
-		System.out.println("Cooccurred CNA groups:");
-		for (Set<String> group : ss)
+		return true;
+		} catch (Exception e)
 		{
-			if (group.size() > 1) System.out.println(group);
+			System.err.println("Error while reading the parameters file.");
+			e.printStackTrace();
+			return false;
 		}
 	}
 }

@@ -429,7 +429,7 @@ public class Simulation
 	}
 
 	public static Map<String, String> getLabelMap(PortalDataset simData,
-		Map<String, AlterationPack> packs) throws FileNotFoundException
+		Set<String> ids) throws FileNotFoundException
 	{
 		List<List<String>> groups = readGroups(simData);
 		Map<String, String> nameMap = new HashMap<String, String>();
@@ -448,7 +448,7 @@ public class Simulation
 		}
 
 		int i = 0;
-		for (String gene : packs.keySet())
+		for (String gene : ids)
 		{
 			if (!nameMap.containsKey(gene))
 			{
@@ -459,23 +459,26 @@ public class Simulation
 		return nameMap;
 	}
 
-	public static List<Group> getTrueGroups(PortalDataset simData, MutexGreedySearcher searcher) throws FileNotFoundException
+	protected Graph convertGraph(Graph g1, PortalDataset dataset) throws FileNotFoundException
 	{
-		List<Group> list = new ArrayList<Group>();
-		List<List<String>> groups = readGroups(simData);
-		for (List<String> group : groups)
+		Map<String, String> map = getLabelMap(dataset, g1.getSymbols());
+
+		Graph g2 = new Graph("Simulated graph", "is-upstream-of");
+
+		for (String source : g1.getOneSideSymbols(true))
 		{
-			Group gr = new Group();
-			for (String gene : group)
+			for (String target : g1.getDownstream(source))
 			{
-				gr.addGene(searcher.getGenes().get(gene));
+				assert map.containsKey(source);
+				assert map.containsKey(target);
+
+				g2.putRelation(map.get(source), map.get(target), true);
 			}
-			list.add(gr);
 		}
-		return list;
+		return g2;
 	}
 
-	public static void evaluateSuccess(List<Group> inferred, PortalDataset simData,Map<String, AlterationPack> packs) throws IOException
+	public static void evaluateSuccess(List<Group> inferred, PortalDataset simData) throws IOException
 	{
 		System.out.println("inferred groups size = " + inferred.size());
 		Set<String> allSim = getGenesInGroups(simData);
@@ -567,7 +570,7 @@ public class Simulation
 	{
 		Map<String, AlterationPack> packs = loadSimData(graph.getSymbols(), simData);
 		String[] cases = getPortalAccessor(simData).getCurrentCaseList().getCases();
-		Map<String, String> labelMap = getLabelMap(simData, packs);
+		Map<String, String> labelMap = getLabelMap(simData, packs.keySet());
 		BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
 
 		for (String aCase : cases) writer.write("\t" + aCase);
@@ -590,7 +593,7 @@ public class Simulation
 	{
 		Map<String, AlterationPack> packs = loadSimData(graph.getSymbols(), simData);
 		String[] cases = getPortalAccessor(simData).getCurrentCaseList().getCases();
-		Map<String, String> labelMap = getLabelMap(simData, packs);
+		Map<String, String> labelMap = getLabelMap(simData, packs.keySet());
 		BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
 
 		List<AlterationPack> packList = new ArrayList<AlterationPack>(packs.values());
@@ -616,7 +619,7 @@ public class Simulation
 	{
 		Map<String, AlterationPack> packs = loadSimData(graph.getSymbols(), simData);
 		String[] cases = getPortalAccessor(simData).getCurrentCaseList().getCases();
-		Map<String, String> labelMap = getLabelMap(simData, packs);
+		Map<String, String> labelMap = getLabelMap(simData, packs.keySet());
 		BufferedWriter writer = new BufferedWriter(new FileWriter(matrixFile));
 
 		List<String> newNames = new ArrayList<String>(labelMap.values());
@@ -648,7 +651,7 @@ public class Simulation
 	{
 		Map<String, AlterationPack> packs = loadSimData(graph.getSymbols(), simData);
 		String[] cases = getPortalAccessor(simData).getCurrentCaseList().getCases();
-		Map<String, String> labelMap = getLabelMap(simData, packs);
+		Map<String, String> labelMap = getLabelMap(simData, packs.keySet());
 		BufferedWriter writer = new BufferedWriter(new FileWriter(mafFile));
 		writer.write("Hugo_Symbol\tEntrez_Gene_Id\tCenter\tNCBI_Build\tChromosome\tStart_position\tEnd_position\tStrand\tVariant_Classification\tVariant_Type\tReference_Allele\tTumor_Seq_Allele1\tTumor_Seq_Allele2\tdbSNP_RS\tdbSNP_Val_Status\tTumor_Sample_Barcode\tMatched_Norm_Sample_Barcode\tMatch_Norm_Seq_Allele1\tMatch_Norm_Seq_Allele2\tTumor_Validation_Allele1\tTumor_Validation_Allele2\tMatch_Norm_Validation_Allele1\tMatch_Norm_Validation_Allele2\tVerification_Status\tValidation_Status\tMutation_Status\tSequencing_Phase\tSequence_Source\tValidation_Method\tScore\tBAM_file\tSequencer\tchromosome_name_WU\tstart_WU\tstop_WU\treference_WU\tvariant_WU\ttype_WU\tgene_name_WU\ttranscript_name_WU\ttranscript_species_WU\ttranscript_source_WU\ttranscript_version_WU\tstrand_WU\ttranscript_status_WU\ttrv_type_WU\tc_position_WU\tamino_acid_change_WU\tucsc_cons_WU\tdomain_WU\tall_domains_WU\tdeletion_substructures_WU\tGenome_Change_Broad\tAnnotation_Transcript_Broad\tcDNA_Change_Broad\tCodon_Change_Broad\tProtein_Change_Broad\tFAM:variant\tFAM:GE.rank\tFAM:CNA\tFAM:OV.variant.samples\tFAM:OV.gene.samples\tFAM:mapping.issue\tFAM:FImpact\tFAM:FI.score\tFAM:Func.region\tFAM:bindsite.protein\tFAM:bindsite.DNA/RNA\tFAM:bindsite.sm.mol\tFAM:CancerGenes\tFAM:TS\tFAM:OG\tFAM:COSMIC.mutations\tFAM:COSMIC.cancers\tFAM:Uniprot.regions\tFAM:TS.interacts\tFAM:OG.interacts\tFAM:Pfam.domain\tFAM:link.var\tFAM:link.MSA\tFAM:link.PDB");
 
@@ -725,7 +728,7 @@ public class Simulation
 	private void printMEMoGroups(String filename, PortalDataset simData, Graph graph) throws IOException
 	{
 		Map<String, AlterationPack> packs = loadSimData(graph.getSymbols(), simData);
-		Map<String, String> labelMap = getLabelMap(simData, packs);
+		Map<String, String> labelMap = getLabelMap(simData, packs.keySet());
 
 		Scanner sc = new Scanner(new File(filename));
 		while (sc.hasNextLine())
@@ -762,8 +765,8 @@ public class Simulation
 		Simulation sim = new Simulation();
 		PortalDataset data = PortalDataset.SIMUL2;
 
-		String dir = "/home/ozgun/Documents/mutex-comparison/MEMo/cancer_data/simulation2-suppl/";
-		sim.printMEMoGroups(dir + "MemoReport.txt", data, Main.getGraph());
+//		String dir = "/home/ozgun/Documents/mutex-comparison/MEMo/cancer_data/simulation2-suppl/";
+//		sim.printMEMoGroups(dir + "MemoReport.txt", data, Main.getGraph());
 //		sim.writeDataToMatrixForRME(data, Main.getGraph(), "/home/ozgun/Documents/mutex-comparison/rmeMod/simdata3/SimData-v3.txt");
 //		sim.writeDataToMatrixForMDPFinder(data, Main.getGraph(), "/home/ozgun/Documents/mutex-comparison/MDPfinder/data/simulated3/SimData-v3.txt");
 //		sim.writeDataToMatrixForDendrix(data, Main.getGraph(), "/home/ozgun/Documents/mutex-comparison/Dendrix/temp/SimData-v3.txt", "/home/ozgun/Documents/mutex-comparison/Dendrix/temp/analyzed_genes-v3.txt");
@@ -777,5 +780,8 @@ public class Simulation
 
 //		Map<String, AlterationPack> packMap = loadSimData(Main.getGraph().getSymbols(), data);
 //		sim.printCoverages(packMap, data);
+
+		Graph graph = sim.convertGraph(new Network(), data);
+		graph.write("data/simulation2/network.txt");
 	}
 }
