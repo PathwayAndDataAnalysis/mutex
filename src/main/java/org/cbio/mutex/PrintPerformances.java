@@ -9,8 +9,8 @@ import java.util.*;
 
 public class PrintPerformances
 {
-	private static final PortalDataset dataset = PortalDataset.SIMUL1;
-	private static final int VERSION = dataset == PortalDataset.SIMUL1 ? 1 : dataset == PortalDataset.SIMUL2 ? 2 : 3;
+	private static final PortalDataset dataset = PortalDatasetEnum.SIMUL1.data;
+	private static final int VERSION = dataset == PortalDatasetEnum.SIMUL1.data ? 1 : dataset == PortalDatasetEnum.SIMUL2.data ? 2 : 3;
 
 	public static void main(String[] args) throws IOException, InterruptedException
 	{

@@ -763,7 +763,7 @@ public class Simulation
 	public static void main(String[] args) throws IOException, ClassNotFoundException
 	{
 		Simulation sim = new Simulation();
-		PortalDataset data = PortalDataset.SIMUL2;
+		PortalDataset data = PortalDatasetEnum.SIMUL2.data;
 
 //		String dir = "/home/ozgun/Documents/mutex-comparison/MEMo/cancer_data/simulation2-suppl/";
 //		sim.printMEMoGroups(dir + "MemoReport.txt", data, Main.getGraph());
