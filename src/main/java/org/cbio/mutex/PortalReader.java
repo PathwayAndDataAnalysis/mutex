@@ -3,6 +3,7 @@ package org.cbio.mutex;
 import org.cbio.causality.analysis.CNVerifier;
 import org.cbio.causality.analysis.Graph;
 import org.cbio.causality.data.portal.*;
+import org.cbio.causality.idmapping.HGNC;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.model.Change;
@@ -25,6 +26,12 @@ public class PortalReader
 	ExpDataManager expMan;
 	CNVerifier cnVerifier;
 
+	// fields for local analysis
+	Set<String> geneSymbols;
+	String outputDir;
+	String outputFileName;
+	boolean useNetwork;
+
 	public PortalReader(PortalDataset dataset) throws IOException
 	{
 		this.dataset = dataset;
@@ -42,31 +49,71 @@ public class PortalReader
 		}
 	}
 
+	public void setGeneSymbols(Set<String> geneSymbols)
+	{
+		this.geneSymbols = geneSymbols;
+	}
+
+	public void setUseNetwork(boolean useNetwork)
+	{
+		this.useNetwork = useNetwork;
+	}
+
+	public void setOutputDir(String outputDir)
+	{
+		this.outputDir = outputDir;
+	}
+
+	public void setOutputFileName(String outputFileName)
+	{
+		this.outputFileName = outputFileName;
+	}
+
 	protected void prepareDataDirectory() throws IOException
 	{
 		System.out.println("Dataset name = " + dataset.name);
-		if (new File(getDataDir()).exists())
-		{
-			System.out.println("Data directory already exists!");
-			return;
-		}
 
 		loadDataset();
 
-		BufferedWriter writer = new BufferedWriter(new FileWriter(getDataDir() + "parameters.txt"));
-
-		writer.write("max-group-size = 5\n");
-		writer.write("first-level-random-iteration = 10000\n");
-		writer.write("second-level-random-iteration = 100\n");
-		writer.write("data-file = " + dataset.name + ".txt\n");
-		writer.write("search-on-signaling-network = true\n");
-		if (dataset.subtypeCases != null && dataset.subtypeCases.length > 0)
-			writer.write("dataset-for-subtype = " + dataset.name + "\n");
-		else if (dataset.subtypeProvider != null )
-			writer.write("dataset-for-subtype = " + dataset.subtypeProvider.name + "\n");
-		writer.write("ignore-cache = false\n");
-
-		writer.close();
+		File paramFile = new File(getDataDir() + "parameters.txt");
+		if (!paramFile.exists())
+		{
+			BufferedWriter writer = new BufferedWriter(new FileWriter(paramFile));
+			writer.write("max-group-size = 5\n");
+			writer.write("first-level-random-iteration = 10000\n");
+			writer.write("second-level-random-iteration = 100\n");
+			writer.write("data-file = " + outputFileName + "\n");
+			writer.write("search-on-signaling-network = true\n");
+			if (dataset.subtypeCases != null && dataset.subtypeCases.length > 0)
+				writer.write("dataset-for-subtype = " + dataset.name + "\n");
+			else if (dataset.subtypeProvider != null )
+				writer.write("dataset-for-subtype = " + dataset.subtypeProvider.name + "\n");
+			writer.write("ignore-cache = false\n");
+			writer.close();
+		}
+		else
+		{
+			String content = "";
+			Scanner sc = new Scanner(paramFile);
+			boolean dataFileArgumentExists = false;
+			while (sc.hasNextLine())
+			{
+				String line = sc.nextLine();
+				if (line.startsWith("data-file"))
+				{
+					dataFileArgumentExists = true;
+					break;
+				}
+				content += line + "\n";
+			}
+			if (!dataFileArgumentExists)
+			{
+				BufferedWriter writer = new BufferedWriter(new FileWriter(paramFile));
+				writer.write(content);
+				writer.write("data-file = " + outputFileName);
+				writer.close();
+			}
+		}
 	}
 
 	/**
@@ -241,23 +288,40 @@ public class PortalReader
 
 	protected String getDataDir()
 	{
-		return "data" + File.separator + dataset.name + File.separator;
+		if (outputDir == null)
+		{
+			outputDir = "data" + File.separator + dataset.name + File.separator;
+		}
+		return outputDir;
 	}
 
 	protected String getTabDelimFilename()
 	{
-		return getDataDir() + dataset.name + ".txt";
+		if (outputFileName == null)
+		{
+			outputFileName = dataset.name + ".txt";
+		}
+		return getDataDir() + outputFileName;
 	}
 
 	public void prepareTabDelimitedFile() throws IOException
 	{
-		Network graph = new Network();
-		Set<String> syms = graph.getSymbols();
+		Network graph = null;
 
-		cropToMutSigGistic(syms, graph);
-		System.out.println("Initial gene size = " + syms.size());
+		if (geneSymbols == null)
+		{
+			if (useNetwork)
+			{
+				graph = new Network();
+				geneSymbols = graph.getSymbols();
+				cropToMutSigGistic(geneSymbols, graph);
+			}
+			else geneSymbols = HGNC.getAllSymbols();
+		}
 
-		Map<String, AlterationPack> altMap = readAlterationsFromPortal(syms);
+		System.out.println("Initial gene size = " + geneSymbols.size());
+
+		Map<String, AlterationPack> altMap = readAlterationsFromPortal(geneSymbols);
 		System.out.println("Genes with data = " + altMap.size());
 		System.out.println("Original sample size = " + altMap.values().iterator().next().getSize());
 
@@ -270,8 +334,12 @@ public class PortalReader
 		filterToMinAlt(altMap, hyper);
 		System.out.println("After filtering to min-alt = " + altMap.size());
 
-		filterDisconnected(altMap, graph);
-		System.out.println("After filtering disconnected = " + altMap.size());
+		if (useNetwork)
+		{
+			if (graph == null) graph = new Network();
+			filterDisconnected(altMap, graph);
+			System.out.println("After filtering disconnected = " + altMap.size());
+		}
 
 		CaseList caseList = accessor.getCurrentCaseList();
 		String[] cases = caseList.getCases();
@@ -534,10 +602,10 @@ public class PortalReader
 
 	public static void main(String[] args) throws IOException
 	{
-		PortalReader pr = new PortalReader(PortalDataset.UCEC);
-//		pr.prepareDataDirectory();
+		PortalReader pr = new PortalReader(PortalDatasetEnum.UCEC.data);
+		pr.prepareDataDirectory();
 
 //		pr.separateData();
-		pr.plotMutCNADistribution();
+//		pr.plotMutCNADistribution();
 	}
 }

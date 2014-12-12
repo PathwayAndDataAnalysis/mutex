@@ -52,7 +52,7 @@ public class Main
 	/**
 	 * The name of the tab-delimited file containing gene alterations.
 	 */
-	private static String dataFileName;
+	protected static String dataFileName;
 
 	/**
 	 * Name of the signaling network file. No need to specify this to use the default network.
@@ -79,6 +79,13 @@ public class Main
 	 * Keywords associated with the dataset, separated by comma.
 	 */
 	private static String literatureKeywords;
+
+	private static String portalStudyID;
+	private static String portalCaseListID;
+	private static String portalExpProfileID;
+	private static String portalCNAProfileID;
+	private static String portalMutProfileID;
+	private static Double minAltRatio;
 
 	public static void main(String[] args) throws IOException, ClassNotFoundException
 	{
@@ -159,6 +166,14 @@ public class Main
 		Map<String, GeneAlt> genesMap = readCache();
 		if (genesMap == null) genesMap = loadAlterations();
 
+		// if the data needs to be downloaded from cBioPortal, do it
+		if (genesMap == null && symbolsFile != null && portalStudyID != null)
+		{
+			downloadPortalData();
+			loadParameters();
+			genesMap = loadAlterations();
+		}
+
 		System.out.println("Number of genes = " + genesMap.size());
 		System.out.println("Number of samples = " + genesMap.values().iterator().next().size());
 
@@ -221,7 +236,7 @@ public class Main
 		Group.sortToCoverage(groups);
 
 		SubtypeAligner sa = subtypeDatasetName == null ? null :
-			new SubtypeAligner(PortalDataset.find(subtypeDatasetName), Group.collectGenes(groups));
+			new SubtypeAligner(PortalDatasetEnum.find(subtypeDatasetName), Group.collectGenes(groups));
 
 		// Write the output graph to visualize in ChiBE
 		if (useGraph) GraphWriter.write(groups, genesMap, network, dir, dataFileName, sa);
@@ -351,8 +366,10 @@ public class Main
 		return null;
 	}
 
-	protected static Map<String, GeneAlt> loadAlterations() throws IOException
+	public static Map<String, GeneAlt> loadAlterations() throws IOException
 	{
+		if (dataFileName == null) return null;
+
 		Map<String, GeneAlt> map = new HashMap<String, GeneAlt>();
 		BufferedReader reader = new BufferedReader(new FileReader(dataFileName));
 
@@ -372,10 +389,25 @@ public class Main
 		return map;
 	}
 
+	/**
+	 * Crops data to the user-provided symbols.
+	 */
 	private static void crop(Map<String, GeneAlt> map) throws FileNotFoundException
 	{
 		if (symbolsFile == null) return;
 
+		Set<String> symbols = readSymbolsFile();
+
+		Set<String> remove = new HashSet<String>(map.keySet());
+		remove.removeAll(symbols);
+		for (String symbol : remove)
+		{
+			map.remove(symbol);
+		}
+	}
+
+	private static Set<String> readSymbolsFile() throws FileNotFoundException
+	{
 		Set<String> symbols = new HashSet<String>();
 
 		Scanner sc = new Scanner(new File(symbolsFile));
@@ -388,13 +420,7 @@ public class Main
 				if (!s.isEmpty()) symbols.add(s);
 			}
 		}
-
-		Set<String> remove = new HashSet<String>(map.keySet());
-		remove.removeAll(symbols);
-		for (String symbol : remove)
-		{
-			map.remove(symbol);
-		}
+		return symbols;
 	}
 
 	/**
@@ -526,6 +552,32 @@ public class Main
 		return bestFDR;
 	}
 
+	private static void downloadPortalData() throws IOException
+	{
+		System.out.println("Downloading alterations from cBioPortal for study " + portalStudyID);
+		PortalDataset dataset = PortalDatasetEnum.findByStudyID(portalStudyID);
+		if (dataset == null)
+		{
+			dataset = new PortalDataset("noname", minAltRatio, portalStudyID, portalCaseListID,
+				new String[]{portalMutProfileID, portalCNAProfileID, portalExpProfileID},
+				null, null);
+		}
+		else
+		{
+			if (portalCaseListID != null) dataset.caseList = portalCaseListID;
+			if (portalMutProfileID != null) dataset.profile[0] = portalMutProfileID;
+			if (portalCNAProfileID != null) dataset.profile[1] = portalCNAProfileID;
+			if (portalExpProfileID != null) dataset.profile[2] = portalExpProfileID;
+			if (minAltRatio != null) dataset.minAltThr = minAltRatio;
+		}
+		PortalReader reader = new PortalReader(dataset);
+		reader.setGeneSymbols(readSymbolsFile());
+		reader.setUseNetwork(useGraph);
+		reader.setOutputDir(dir);
+		reader.setOutputFileName("Data.txt");
+		reader.prepareDataDirectory();
+	}
+
 	private static boolean loadParameters() throws FileNotFoundException
 	{
 		File file = new File(dir + "parameters.txt");
@@ -590,6 +642,30 @@ public class Main
 			else if (token[0].equals("keywords"))
 			{
 				literatureKeywords = token[1];
+			}
+			else if (token[0].equals("portal-study-id"))
+			{
+				portalStudyID = token[1];
+			}
+			else if (token[0].equals("portal-caselist-id"))
+			{
+				portalCaseListID = token[1];
+			}
+			else if (token[0].equals("portal-expression-profile-id"))
+			{
+				portalExpProfileID = token[1];
+			}
+			else if (token[0].equals("portal-cna-profile-id"))
+			{
+				portalCNAProfileID = token[1];
+			}
+			else if (token[0].equals("portal-mutation-profile-id"))
+			{
+				portalMutProfileID = token[1];
+			}
+			else if (token[0].equals("minimum-alteration-ratio"))
+			{
+				minAltRatio = new Double(token[1]);
 			}
 		}
 		return true;

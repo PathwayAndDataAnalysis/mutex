@@ -24,7 +24,9 @@ public class Network extends Graph
 	{
 		super("directed network", "is-upstream-of");
 		load(new FileInputStream(filename), Collections.<String>emptySet(),
-			new HashSet<String>(Arrays.asList("is-upstream-of")));
+			new HashSet<String>(Arrays.asList(
+				SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag(),
+				SIFEnum.CONTROLS_EXPRESSION_OF.getTag())));
 
 		linker = new SIFLinker();
 		linker.load(this);

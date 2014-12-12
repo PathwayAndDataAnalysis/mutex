@@ -205,7 +205,7 @@ public class SubtypeAligner
 	{
 		String s = "PIK3CA, TP53, MYC, PTK2, CDH1, PIP5K1A, RPS6KB1, PPM1D, EIF4EBP1, TLK2, BTG2, BCAS3, PPP2R5A, GATA3, GRB2, IL2RA, WDR37";
 		Set<String> genes = new HashSet<String>(Arrays.asList(s.split(", ")));
-		SubtypeAligner sa = new SubtypeAligner(PortalDataset.BRCA_PUB, genes);
+		SubtypeAligner sa = new SubtypeAligner(PortalDatasetEnum.BRCA_PUB.data, genes);
 		for (String gene : genes)
 		{
 			System.out.println(gene + "\t" + sa.getEnrichedSubtypes(gene, 0.05));

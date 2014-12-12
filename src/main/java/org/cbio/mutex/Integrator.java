@@ -2,6 +2,7 @@ package org.cbio.mutex;
 
 import org.cbio.causality.analysis.Graph;
 import org.cbio.causality.data.GeneCards;
+import org.cbio.causality.data.portal.BroadAccessor;
 
 import java.io.*;
 import java.util.*;
@@ -22,18 +23,27 @@ public class Integrator
 	 * Names of directories containing the studies to include.
 	 */
 	static final String[] study = new String[]{"adrenocortical", "breast", "colorectal",
-		"endometrial-cna", "endometrial-mut", "glioblastoma", "head-and-neck", "kidney-papillary", "kidney-renal",
+		"glioblastoma", "head-and-neck", "kidney-renal", "kidney-papillary",
 		"leukemia", "lower-grade-glioma", "lung-adeno", "lung-squamous", "ovarian", "prostate",
-		"skin", "stomach", "thyroid"};
+		"skin", "stomach", "thyroid", "endometrial-cna", "endometrial-mut"};
+
+	/**
+	 * Names of directories containing the studies to include.
+	 */
+	static final String[] code = new String[]{"ACC", "BRCA", "COADREAD",
+		"GBM", "HNSC", "KIRC", "KIRP",
+		"LAML", "LGG", "LUAD", "LUSC", "OV", "PRAD",
+		"SKCM", "STAD", "THCA", "UCEC"};
 
 	public static void main(String[] args) throws IOException
 	{
 		run();
+//		countSamples();
 	}
 
 	static void run() throws IOException
 	{
-		Map<String, Integer> geneScore = new HashMap<String, Integer>();
+		final Map<String, Integer> geneScore = new HashMap<String, Integer>();
 		Map<String, Integer> pairScore = new HashMap<String, Integer>();
 		Map<String, Set<String>> genesMap = new HashMap<String, Set<String>>();
 		Map<String, List<List<String>>> groupsMap = new HashMap<String, List<List<String>>>();
@@ -89,14 +99,43 @@ public class Integrator
 
 		int brightestTone = 100;
 		int extraTone = 200;
-		List<String> recurrent = prepareSIF(geneScore, pairScore, "integrated", 2, 1,
-			brightestTone, extraTone);
+		prepareSIF(geneScore, pairScore, "integrated", 2, 1, brightestTone, extraTone);
+
+		// print recurrent genes
+
+		List<String> recurrent = new ArrayList<String>();
+
+		for (String gene : geneScore.keySet())
+		{
+			if (geneScore.get(gene) > 1) recurrent.add(gene);
+		}
+
+		Collections.sort(recurrent, new Comparator<String>()
+		{
+			@Override
+			public int compare(String o1, String o2)
+			{
+				return geneScore.get(o2).compareTo(geneScore.get(o1));
+			}
+		});
+
+		System.out.println("recurrent = " + recurrent);
+
+		Map<String, List<String>>[] mg = getMutSigGistic(recurrent);
+
+		System.out.println("Gene\tRecurrence\tMutsig Cnt\tGistic Cnt");
+		for (String gene : recurrent)
+		{
+			System.out.println(gene + "\t" + geneScore.get(gene) +
+				"\t" + mg[0].get(gene).size() + "\t" + mg[1].get(gene).size());
+		}
+
 
 		printCancerAssociations(genesMap, recurrent);
-		printTargets(groupsMap);
+		printTargets(groupsMap, 1);
 	}
 
-	private static void printTargets(Map<String, List<List<String>>> groupsMap)
+	private static void printTargets(Map<String, List<List<String>>> groupsMap, int howMany)
 	{
 		Graph graph = new Network();
 
@@ -135,7 +174,7 @@ public class Integrator
 			}
 		});
 
-		for (int i = 0; i < 100; i++)
+		for (int i = 0; i < howMany; i++)
 		{
 			String target = targets.get(i);
 
@@ -171,6 +210,19 @@ public class Integrator
 			List<String> list = new ArrayList<String>(recurrent);
 			list.retainAll(genesMap.get(s));
 			System.out.println(list.toString());
+		}
+		System.out.println();
+		for (String gene : recurrent)
+		{
+			List<String> list = new ArrayList<String>();
+			for (int i = 0; i < study.length; i++)
+			{
+				String s = study[i];
+				if (!genesMap.containsKey(s)) continue;
+				if (genesMap.get(s).contains(gene))
+					list.add(i < study.length - 2 ? code[i] : i == study.length - 2 ? code[i] + "-cna" : code[i-1] + "-mut");
+			}
+			System.out.println(gene + ": " + list);
 		}
 		System.out.println();
 	}
@@ -243,7 +295,7 @@ public class Integrator
 	 * Writes the sif file to visualize using ChiBE.
 	 * @return recurrent genes
 	 */
-	private static List<String> prepareSIF(final Map<String, Integer> geneScore,
+	private static void prepareSIF(final Map<String, Integer> geneScore,
 		Map<String, Integer> pairScore, String file, int recurrenceThr, int bindExistingThr,
 		int minCol, int extraCol) throws IOException
 	{
@@ -329,35 +381,20 @@ public class Integrator
 		}
 		writer.close();
 
-		List<String> list = new ArrayList<String>(wroteGenes);
-		Collections.sort(list);
-		System.out.println("list.size() = " + list.size());
-		for (String gene : list)
-		{
-			System.out.print(gene + ": ");
-			Set<String> relatedCancers = GeneCards.getRelatedCancers(gene);
-			for (String cancer : relatedCancers)
-			{
-				System.out.print(cancer + ", ");
-			}
-			System.out.println();
-		}
-
-		Collections.sort(list, new Comparator<String>()
-		{
-			@Override
-			public int compare(String o1, String o2)
-			{
-				return geneScore.get(o2).compareTo(geneScore.get(o1));
-			}
-		});
-
-		for (String gene : list)
-		{
-			System.out.println(gene + "\t" + geneScore.get(gene));
-		}
-
-		return list;
+// print GeneCards cancer associations
+//		List<String> list = new ArrayList<String>(wroteGenes);
+//		Collections.sort(list);
+//		System.out.println("list.size() = " + list.size());
+//		for (String gene : list)
+//		{
+//			System.out.print(gene + ": ");
+//			Set<String> relatedCancers = GeneCards.getRelatedCancers(gene);
+//			for (String cancer : relatedCancers)
+//			{
+//				System.out.print(cancer + ", ");
+//			}
+//			System.out.println();
+//		}
 	}
 
 	private static int getMax(Map<String, Integer> map)
@@ -380,4 +417,80 @@ public class Integrator
 		int col = (int) Math.round(minCol * rat);
 		return col + " " + col + " " + col;
 	}
+
+	private static Map<String, List<String>>[] getMutSigGistic(List<String> genes)
+	{
+		Map<String, List<String>> mutsigCnt = new HashMap<String,List<String>>();
+		Map<String, List<String>> gisticCnt = new HashMap<String, List<String>>();
+
+		Map<String, Set<String>> mutsig = new HashMap<String, Set<String>>();
+		Map<String, Set<String>> gistic = new HashMap<String, Set<String>>();
+
+		Set<String> allGistic = new HashSet<String>();
+		Set<String> allMutsig = new HashSet<String>();
+
+		for (String c : code)
+		{
+			mutsig.put(c, BroadAccessor.getMutsigGenes(c, 0.05, true));
+			gistic.put(c, BroadAccessor.getGisticGenes(c, 0.05));
+
+			allMutsig.addAll(mutsig.get(c));
+			allGistic.addAll(gistic.get(c));
+		}
+
+		for (String gene : genes)
+		{
+			mutsigCnt.put(gene, new ArrayList<String>());
+			gisticCnt.put(gene, new ArrayList<String>());
+			for (String c : code)
+			{
+				if (mutsig.get(c).contains(gene)) mutsigCnt.get(gene).add(c);
+				if (gistic.get(c).contains(gene)) gisticCnt.get(gene).add(c);
+			}
+		}
+
+		System.out.println();
+		for (String gene : genes)
+		{
+			System.out.print(gene + ": ");
+			if (!mutsigCnt.get(gene).isEmpty()) System.out.print("M " + mutsigCnt.get(gene));
+			System.out.print(" -- ");
+			if (!gisticCnt.get(gene).isEmpty()) System.out.print("G " + gisticCnt.get(gene));
+			System.out.println();
+		}
+
+		System.out.println("allMutsig = " + allMutsig.size());
+		System.out.println("allGistic = " + allGistic.size());
+
+		return new Map[]{mutsigCnt, gisticCnt};
+	}
+
+	static void countSamples() throws IOException
+	{
+		int total = 0;
+		for (String s : study)
+		{
+			System.out.println("\nStudy = " + s);
+			File f = new File(dir + s);
+			assert f.exists() && f.isDirectory();
+
+			File datafile = new File(f.getPath() + File.separator + s + ".txt");
+			if (!datafile.exists())
+			{
+				datafile = new File(f.getPath() + File.separator + s.substring(0, s.lastIndexOf("-")) + ".txt");
+			}
+			if (!datafile.exists())
+			{
+				System.out.println("Not complete!");
+				continue;
+			}
+
+			Scanner sc = new Scanner(datafile);
+			int size = sc.nextLine().split("\t").length - 1;
+			total += size;
+		}
+
+		System.out.println("total = " + total);
+	}
 }
+

@@ -4,7 +4,7 @@ package org.cbio.mutex;
  * A dataset from the portal.
  * @author Ozgun Babur
  */
-public enum PortalDataset
+public enum PortalDatasetEnum
 {
 	GBM_PUB("glioblastoma-pub", 0.01,
 	"gbm_tcga_pub", "gbm_tcga_pub_3way_complete", new String[]{"gbm_tcga_pub_mutations", "gbm_tcga_pub_cna_consensus", "gbm_tcga_pub_mrna"},
@@ -90,14 +90,7 @@ public enum PortalDataset
 	SIMUL2("simulated", 0.03, "simulated_" + "ng20_gs3_ss463", "simulated_caseset", new String[]{"simulated_profile_" + "ng20_gs3_ss463"}, new String[]{}, null),
 	SIMUL3("simulated", 0.03, "simulated_" + "ng10_gs6_ss463", "simulated_caseset", new String[]{"simulated_profile_" + "ng10_gs6_ss463"}, new String[]{}, null);
 
-	String name;
-	String study;
-	String caseList;
-	String[] profile;
-	String[] subtypeCases;
-	double minAltThr;
-	boolean[] hyper;
-	PortalDataset subtypeProvider;
+	PortalDataset data;
 
 	/**
 	 * Constructor with parameters.
@@ -105,23 +98,26 @@ public enum PortalDataset
 	 * @param caseList index of case-list in portal
 	 * @param profile indices of the desired genomic profiles
 	 */
-	PortalDataset(String name, double minAltThr, String study, String caseList,
-		String[] profile, String[] subtypes, PortalDataset subtypeProvider)
+	PortalDatasetEnum(String name, double minAltThr, String study, String caseList,
+		String[] profile, String[] subtypes, PortalDatasetEnum subtypeProvider)
 	{
-		this.name = name;
-		this.minAltThr = minAltThr;
-		this.study = study;
-		this.caseList = caseList;
-		this.profile = profile;
-		this.subtypeCases = subtypes;
-		this.subtypeProvider = subtypeProvider;
+		this.data = new PortalDataset(name, minAltThr, study, caseList, profile, subtypes, subtypeProvider == null ? null : subtypeProvider.data);
 	}
 
 	public static PortalDataset find(String name)
 	{
-		for (PortalDataset data : values())
+		for (PortalDatasetEnum data : values())
 		{
-			if (data.name.equals(name)) return data;
+			if (data.data.name.equals(name)) return data.data;
+		}
+		return null;
+	}
+
+	public static PortalDataset findByStudyID(String studyID)
+	{
+		for (PortalDatasetEnum data : values())
+		{
+			if (data.data.study.equals(studyID)) return data.data;
 		}
 		return null;
 	}
