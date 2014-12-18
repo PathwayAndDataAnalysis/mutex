@@ -156,7 +156,7 @@ public class Simulation
 			{
 				group.addGene(geneMap.get(id));
 			}
-			String s = group.getPrint(null, null, false);
+			String s = group.getPrint(null, null, false, false);
 			System.out.println(s.substring(0, s.indexOf("\n")));
 		}
 	}

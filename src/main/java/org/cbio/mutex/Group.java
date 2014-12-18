@@ -504,16 +504,16 @@ public class Group implements Serializable
 	 */
 	public String getPrint()
 	{
-		return getPrint(null);
+		return getPrint(null, false);
 	}
 
 	/**
 	 * Gets the oncoprint of the members in a String.
 	 * @return oncoprint
 	 */
-	public String getPrint(SubtypeAligner sa)
+	public String getPrint(SubtypeAligner sa, boolean withTargets)
 	{
-		return getPrint(sa, null, true);
+		return getPrint(sa, null, true, withTargets);
 	}
 
 	/**
@@ -521,7 +521,8 @@ public class Group implements Serializable
 	 * @param withMHT with multiple hypothesis testing
 	 * @return oncoprint
 	 */
-	public String getPrint(SubtypeAligner sa, Map<String, String> nameConvMap, boolean withMHT)
+	public String getPrint(SubtypeAligner sa, Map<String, String> nameConvMap, boolean withMHT,
+		boolean withTargets)
 	{
 		List<Integer> order = getPrintOrdering();
 		Map<String, Double> p = calcPVals1();
@@ -538,8 +539,8 @@ public class Group implements Serializable
 			append("\tscore: ").
 			append(FormatUtil.roundToSignificantDigits(score, 2));
 		if (withMHT) s.append("\tcorrected-score: ").
-			append(FormatUtil.roundToSignificantDigits(calcFinalScore(), 2)).
-			append("\ttargets:").append(getTargetLine(getTargets()));
+			append(FormatUtil.roundToSignificantDigits(calcFinalScore(), 2));
+		if (withTargets) s.append("\ttargets:").append(getTargetLine(getTargets()));
 
 		for (GeneAlt gene : members)
 		{
