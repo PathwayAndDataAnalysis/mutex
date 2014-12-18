@@ -2,6 +2,7 @@ package org.cbio.mutex;
 
 import org.cbio.causality.data.GeneCards;
 import org.cbio.causality.util.FDR;
+import org.cbio.causality.util.Kronometre;
 
 import java.io.*;
 import java.util.*;
@@ -89,6 +90,8 @@ public class Main
 
 	public static void main(String[] args) throws IOException, ClassNotFoundException
 	{
+		Kronometre kron = new Kronometre();
+
 		if (args.length < 1)
 		{
 			displayHelp();
@@ -118,6 +121,9 @@ public class Main
 		{
 			search();
 		}
+
+		kron.stop();
+		kron.print();
 	}
 
 	public static void reset()
@@ -246,7 +252,7 @@ public class Main
 		// Print textual results
 		for (Group group : groups)
 		{
-			System.out.println(group.getPrint(sa, null, true) + "\n");
+			System.out.println(group.getPrint(sa, null, true, useGraph) + "\n");
 		}
 
 		if (literatureKeywords != null) printAnnotations(getGenes(groups, genesMap));
@@ -369,6 +375,7 @@ public class Main
 	public static Map<String, GeneAlt> loadAlterations() throws IOException
 	{
 		if (dataFileName == null) return null;
+		if (!new File(dataFileName).exists()) return null;
 
 		Map<String, GeneAlt> map = new HashMap<String, GeneAlt>();
 		BufferedReader reader = new BufferedReader(new FileReader(dataFileName));
