@@ -62,6 +62,7 @@ public class PortalReader
 	public void setOutputDir(String outputDir)
 	{
 		this.outputDir = outputDir;
+		if (!this.outputDir.endsWith(File.separator)) this.outputDir += File.separator;
 	}
 
 	public void setOutputFileName(String outputFileName)
@@ -75,44 +76,52 @@ public class PortalReader
 
 		loadDataset();
 
-		File paramFile = new File(getDataDir() + "parameters.txt");
-		if (!paramFile.exists())
+		String netOnDir = getDataDir() + "network-on" + File.separator;
+		new File(netOnDir).mkdirs();
+		String netOffDir = getDataDir() + "network-off" + File.separator;
+		new File(netOffDir).mkdirs();
+		File paramFile = new File(netOnDir + "parameters.txt");
+		generateParametersFile(paramFile, true);
+		paramFile = new File(netOffDir + "parameters.txt");
+		generateParametersFile(paramFile, false);
+	}
+
+	private void generateParametersFile(File paramFile, boolean useNetwork) throws IOException
+	{
+		BufferedWriter writer = new BufferedWriter(new FileWriter(paramFile));
+		writer.write("max-group-size = 5\n");
+		writer.write("first-level-random-iteration = 10000\n");
+		writer.write("second-level-random-iteration = 100\n");
+		writer.write("data-file = ../" + outputFileName + "\n");
+		writer.write("search-on-signaling-network = " + useNetwork + "\n");
+		if (dataset.subtypeCases != null && dataset.subtypeCases.length > 0)
+			writer.write("dataset-for-subtype = " + dataset.name + "\n");
+		else if (dataset.subtypeProvider != null )
+			writer.write("dataset-for-subtype = " + dataset.subtypeProvider.name + "\n");
+		writer.close();
+	}
+
+	public void updateParametersFile(File paramFile) throws IOException
+	{
+		String content = "";
+		Scanner sc = new Scanner(paramFile);
+		boolean dataFileArgumentExists = false;
+		while (sc.hasNextLine())
+		{
+			String line = sc.nextLine();
+			if (line.startsWith("data-file"))
+			{
+				dataFileArgumentExists = true;
+				break;
+			}
+			content += line + "\n";
+		}
+		if (!dataFileArgumentExists)
 		{
 			BufferedWriter writer = new BufferedWriter(new FileWriter(paramFile));
-			writer.write("max-group-size = 5\n");
-			writer.write("first-level-random-iteration = 10000\n");
-			writer.write("second-level-random-iteration = 100\n");
-			writer.write("data-file = " + outputFileName + "\n");
-			writer.write("search-on-signaling-network = true\n");
-			if (dataset.subtypeCases != null && dataset.subtypeCases.length > 0)
-				writer.write("dataset-for-subtype = " + dataset.name + "\n");
-			else if (dataset.subtypeProvider != null )
-				writer.write("dataset-for-subtype = " + dataset.subtypeProvider.name + "\n");
-			writer.write("ignore-cache = false\n");
+			writer.write(content);
+			writer.write("data-file = " + outputFileName);
 			writer.close();
-		}
-		else
-		{
-			String content = "";
-			Scanner sc = new Scanner(paramFile);
-			boolean dataFileArgumentExists = false;
-			while (sc.hasNextLine())
-			{
-				String line = sc.nextLine();
-				if (line.startsWith("data-file"))
-				{
-					dataFileArgumentExists = true;
-					break;
-				}
-				content += line + "\n";
-			}
-			if (!dataFileArgumentExists)
-			{
-				BufferedWriter writer = new BufferedWriter(new FileWriter(paramFile));
-				writer.write(content);
-				writer.write("data-file = " + outputFileName);
-				writer.close();
-			}
 		}
 	}
 
@@ -141,7 +150,7 @@ public class PortalReader
 				if (gene.alterations[i] == 2 || gene.alterations[i] == 3 || gene.alterations[i] == 4 || gene.alterations[i] == 5) cna++;
 			}
 			cnaMarked[i] = cna >= mut;
-			mutMarked[i] = cna <= mut;
+			mutMarked[i] = cna < mut;
 		}
 
 		separateData(genes, cnaMarked, "cna");
@@ -153,16 +162,18 @@ public class PortalReader
 		String dir = getDataDir();
 		dir = dir.substring(0, dir.length() - 1);
 		dir += "-" + ext + File.separator;
-		new File(dir).mkdirs();
+		new File(dir + "network-on").mkdirs();
+		new File(dir + "network-off").mkdirs();
 
-		FileUtil.copyFile(getDataDir() + "parameters.txt", dir + "parameters.txt");
+		FileUtil.copyFile(getDataDir() + "network-on" + File.separator + "parameters.txt", dir + "network-on" + File.separator + "parameters.txt");
+		FileUtil.copyFile(getDataDir() + "network-off" + File.separator + "parameters.txt", dir + "network-off" + File.separator + "parameters.txt");
 
 		Scanner sc = new Scanner(new File(getTabDelimFilename()));
 		String line = sc.nextLine();
 		line = line.substring(line.indexOf("\t") + 1);
 		String[] cases = line.split("\t");
 
-		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + dataset.name + ".txt"));
+		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + "DataMatrix.txt"));
 		writer.write("ID");
 
 		for (int i = 0; i < cases.length; i++)
@@ -188,7 +199,7 @@ public class PortalReader
 	{
 		if (!new File(getTabDelimFilename()).exists())
 		{
-			prepareTabDelimitedFile();
+			prepareTabDelimitedFile(500);
 		}
 		return readTabDelimitedData(getTabDelimFilename());
 	}
@@ -290,7 +301,7 @@ public class PortalReader
 	{
 		if (outputDir == null)
 		{
-			outputDir = "data" + File.separator + dataset.name + File.separator;
+			outputDir = "data-tcga-rerun" + File.separator + dataset.name + File.separator;
 		}
 		return outputDir;
 	}
@@ -299,24 +310,25 @@ public class PortalReader
 	{
 		if (outputFileName == null)
 		{
-			outputFileName = dataset.name + ".txt";
+			outputFileName =  "DataMatrix.txt";
 		}
 		return getDataDir() + outputFileName;
 	}
 
-	public void prepareTabDelimitedFile() throws IOException
+	public void prepareTabDelimitedFile(int geneLimit) throws IOException
 	{
-		Network graph = null;
+//		Network graph = null;
 
 		if (geneSymbols == null)
 		{
-			if (useNetwork)
-			{
-				graph = new Network();
-				geneSymbols = graph.getSymbols();
-				cropToMutSigGistic(geneSymbols, graph);
-			}
-			else geneSymbols = HGNC.getAllSymbols();
+//			if (useNetwork)
+//			{
+//				graph = new Network();
+//				geneSymbols = graph.getSymbols();
+//				cropToMutSigGistic(geneSymbols, graph);
+//			}
+//			else
+				geneSymbols = HGNC.getAllSymbols();
 		}
 
 		System.out.println("Initial gene size = " + geneSymbols.size());
@@ -331,15 +343,15 @@ public class PortalReader
 		dataset.hyper = hyper;
 		System.out.println("Hyper altered size = " + ArrayUtil.countValue(dataset.hyper, true));
 
-		filterToMinAlt(altMap, hyper);
-		System.out.println("After filtering to min-alt = " + altMap.size());
+		filterToAltCnt(altMap, hyper, geneLimit);
+		System.out.println("After filtering out less-altered = " + altMap.size());
 
-		if (useNetwork)
-		{
-			if (graph == null) graph = new Network();
-			filterDisconnected(altMap, graph);
-			System.out.println("After filtering disconnected = " + altMap.size());
-		}
+//		if (useNetwork)
+//		{
+//			if (graph == null) graph = new Network();
+//			filterDisconnected(altMap, graph);
+//			System.out.println("After filtering disconnected = " + altMap.size());
+//		}
 
 		CaseList caseList = accessor.getCurrentCaseList();
 		String[] cases = caseList.getCases();
@@ -414,9 +426,10 @@ public class PortalReader
 		}
 	}
 
-	public void filterToMinAlt(Map<String, AlterationPack> altMap, boolean[] hyper)
+	public void filterToAltCnt(Map<String, AlterationPack> altMap, boolean[] hyper, int geneLimit)
 	{
 		Set<String> remove = new HashSet<String>();
+		final Map<String, Integer> cntMap = new HashMap<String, Integer>();
 
 		for (String id : altMap.keySet())
 		{
@@ -430,7 +443,11 @@ public class PortalReader
 				if (!hyper[i] && ch[i].isAltered()) cnt++;
 			}
 
-			if ((cnt / (double) ch.length) < dataset.minAltThr)
+			cntMap.put(id, cnt);
+
+			// todo don't forget here!
+//			if ((cnt / (double) ch.length) < dataset.minAltThr)
+			if ((cnt / (double) ch.length) < 0.01)
 			{
 				remove.add(id);
 			}
@@ -438,6 +455,34 @@ public class PortalReader
 		for (String id : remove)
 		{
 			altMap.remove(id);
+		}
+
+		if (altMap.size() > geneLimit)
+		{
+			System.out.println("Genes before limit = " + altMap.size());
+
+			List<String> sorted = new ArrayList<String>(altMap.keySet());
+			Collections.sort(sorted, new Comparator<String>()
+			{
+				@Override
+				public int compare(String o1, String o2)
+				{
+					return cntMap.get(o2).compareTo(cntMap.get(o1));
+				}
+			});
+
+			int limitCnt = cntMap.get(sorted.get(geneLimit));
+			System.out.println("limitCnt = " + limitCnt);
+			remove.clear();
+
+			for (String id : altMap.keySet())
+			{
+				if (cntMap.get(id) <= limitCnt) remove.add(id);
+			}
+			for (String id : remove)
+			{
+				altMap.remove(id);
+			}
 		}
 	}
 
@@ -602,10 +647,18 @@ public class PortalReader
 
 	public static void main(String[] args) throws IOException
 	{
-		PortalReader pr = new PortalReader(PortalDatasetEnum.UCEC.data);
-		pr.prepareDataDirectory();
+		for (PortalDatasetEnum dataset : PortalDatasetEnum.values())
+		{
+			if (dataset.data.name.equals("simulated") || dataset.data.name.equals("sarcoma") ||
+				dataset.data.name.endsWith("-pub")) continue;
 
+			PortalReader pr = new PortalReader(dataset.data);
+			pr.prepareDataDirectory();
+		}
+
+//		PortalReader pr = new PortalReader(PortalDatasetEnum.UCEC.data);
 //		pr.separateData();
+
 //		pr.plotMutCNADistribution();
 	}
 }

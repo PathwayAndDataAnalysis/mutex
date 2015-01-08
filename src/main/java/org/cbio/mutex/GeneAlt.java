@@ -4,6 +4,7 @@ import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.model.Change;
 import org.cbio.causality.util.ArrayUtil;
+import org.cbio.causality.util.Summary;
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -75,6 +76,17 @@ public class GeneAlt implements Cloneable, Serializable
 	{
 		this.id = pack.getId();
 		this.alterations = convertAlterations(pack, null);
+
+	}
+
+	/**
+	 * Constructor for subtype cases
+	 * @param pack
+	 */
+	public GeneAlt(AlterationPack pack, boolean[] exclude)
+	{
+		this.id = pack.getId();
+		this.alterations = convertAlterations(pack, exclude);
 	}
 
 	/**
@@ -127,6 +139,12 @@ public class GeneAlt implements Cloneable, Serializable
 				alterations[i] == Letter.DEL_MUT.code;
 		}
 		return b;
+	}
+
+	public double getMutatedRatio()
+	{
+		boolean[] b = getMutated();
+		return Math.round((Summary.countTrue(b) / (double) b.length) * 1E10) / 1E10;
 	}
 
 	public boolean[] getCNAltered()
@@ -241,6 +259,24 @@ public class GeneAlt implements Cloneable, Serializable
 		}
 	}
 
+	/**
+	 * Beware. There is no un-shuffle of this operation.
+	 */
+	public void shufflePermanent()
+	{
+		Integer[] arr = new Integer[alterations.length];
+		for (int i = 0; i < arr.length; i++)
+		{
+			arr[i] = alterations[i];
+		}
+		Collections.shuffle(Arrays.asList(arr));
+		for (int i = 0; i < arr.length; i++)
+		{
+			alterations[i] = arr[i];
+		}
+		ch = null;
+	}
+
 	public void unshuffle()
 	{
 		ch = null;
@@ -251,10 +287,15 @@ public class GeneAlt implements Cloneable, Serializable
 		shuf = null;
 		ch = null;
 		randScores = randScoresSave;
+		randScoresSave = null;
 	}
 
 	public void shuffleSticky()
 	{
+		if (randScoresSave != null) throw new RuntimeException("The method shuffleSticky cannot " +
+			"be called while a previous call exists. Please call unshuffleSticky before calling" +
+			"this method second time.");
+
 		shuffle();
 		shuf = new boolean[ch.length];
 		System.arraycopy(ch, 0, shuf, 0, ch.length);
@@ -303,17 +344,21 @@ public class GeneAlt implements Cloneable, Serializable
 
 			int code;
 
-			if (pack.get(Alteration.MUTATION)[i].isAltered())
+			if (pack.get(Alteration.COPY_NUMBER) == null)
 			{
-				if (pack.get(Alteration.COPY_NUMBER)[i] == Change.ACTIVATING) code = Letter.AMP_MUT.code;
-				else if (pack.get(Alteration.COPY_NUMBER)[i] == Change.INHIBITING) code = Letter.DEL_MUT.code;
-				else code = Letter.MUT.code;
+				code = pack.get(Alteration.MUTATION)[i].isAltered() ? 1 : 0;
 			}
-			else
+			else if (pack.get(Alteration.MUTATION) == null || !pack.get(Alteration.MUTATION)[i].isAltered())
 			{
 				if (pack.get(Alteration.COPY_NUMBER)[i] == Change.ACTIVATING) code = Letter.AMP.code;
 				else if (pack.get(Alteration.COPY_NUMBER)[i] == Change.INHIBITING) code = Letter.DEL.code;
 				else code = 0;
+			}
+			else
+			{
+				if (pack.get(Alteration.COPY_NUMBER)[i] == Change.ACTIVATING) code = Letter.AMP_MUT.code;
+				else if (pack.get(Alteration.COPY_NUMBER)[i] == Change.INHIBITING) code = Letter.DEL_MUT.code;
+				else code = Letter.MUT.code;
 			}
 
 			alts[j++] = code;

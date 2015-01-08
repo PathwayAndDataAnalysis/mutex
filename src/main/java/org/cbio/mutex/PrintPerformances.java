@@ -9,7 +9,7 @@ import java.util.*;
 
 public class PrintPerformances
 {
-	private static final PortalDataset dataset = PortalDatasetEnum.SIMUL1.data;
+	private static final PortalDataset dataset = PortalDatasetEnum.SIMUL2.data;
 	private static final int VERSION = dataset == PortalDatasetEnum.SIMUL1.data ? 1 : dataset == PortalDatasetEnum.SIMUL2.data ? 2 : 3;
 
 	public static void main(String[] args) throws IOException, InterruptedException
@@ -38,19 +38,20 @@ public class PrintPerformances
 				@Override
 				public String getFilename1()
 				{
-					return "data/simulation1/ranked-groups.txt";
+					return "data-simulation/large-dataset/with-network/ranked-groups.txt";
 				}
 
 				@Override
 				public String getFilename2()
 				{
-					return "data/simulation2/ranked-groups.txt";
+					return "data-simulation/small-dataset/with-network/ranked-groups.txt";
 				}
 
 				@Override
 				public String[] getGroupMembers(String line)
 				{
 					if (line.startsWith("S")) return null;
+					line = line.substring(line.indexOf("\t") + 1);
 					line = line.substring(line.indexOf("\t") + 1);
 					return line.split("\t");
 				}
@@ -303,20 +304,20 @@ public class PrintPerformances
 				@Override
 				public String getFilename1()
 				{
-					return "data/simulation1-no-reduction/ranked-groups.txt";
-//					return "mutex-ranked-groups-v1-noreduce-replicate.txt";
+					return "data-simulation/large-dataset/without-network/ranked-groups.txt";
 				}
 
 				@Override
 				public String getFilename2()
 				{
-					return "data/simulation2-no-reduction/ranked-groups.txt";
+					return "data-simulation/small-dataset/without-network/ranked-groups.txt";
 				}
 
 				@Override
 				public String[] getGroupMembers(String line)
 				{
 					if (line.startsWith("S")) return null;
+					line = line.substring(line.indexOf("\t") + 1);
 					line = line.substring(line.indexOf("\t") + 1);
 					return line.split("\t");
 				}

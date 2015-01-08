@@ -1,7 +1,6 @@
 package org.cbio.mutex;
 
 import org.cbio.causality.analysis.Graph;
-import org.cbio.causality.data.GeneCards;
 import org.cbio.causality.data.portal.BroadAccessor;
 
 import java.io.*;
@@ -17,23 +16,14 @@ public class Integrator
 	/**
 	 * Parent directory of analysis results.
 	 */
-	static final String dir = "data/";
+	static final String dir = "data-tcga/";
 
 	/**
 	 * Names of directories containing the studies to include.
 	 */
-	static final String[] study = new String[]{"adrenocortical", "breast", "colorectal",
-		"glioblastoma", "head-and-neck", "kidney-renal", "kidney-papillary",
-		"leukemia", "lower-grade-glioma", "lung-adeno", "lung-squamous", "ovarian", "prostate",
-		"skin", "stomach", "thyroid", "endometrial-cna", "endometrial-mut"};
-
-	/**
-	 * Names of directories containing the studies to include.
-	 */
-	static final String[] code = new String[]{"ACC", "BRCA", "COADREAD",
-		"GBM", "HNSC", "KIRC", "KIRP",
-		"LAML", "LGG", "LUAD", "LUSC", "OV", "PRAD",
-		"SKCM", "STAD", "THCA", "UCEC"};
+	static final String[] study = new String[]{"ACC", "BRCA", "COADREAD", "GBM", "HNSC", "KIRC",
+		"KIRP", "LAML", "LGG", "LUAD", "LUSC", "OV", "PRAD", "SKCM", "STAD", "THCA", "UCEC-mut",
+		"UCEC-cna"};
 
 	public static void main(String[] args) throws IOException
 	{
@@ -119,6 +109,7 @@ public class Integrator
 			}
 		});
 
+		System.out.println("recurrent.size() = " + recurrent.size());
 		System.out.println("recurrent = " + recurrent);
 
 		Map<String, List<String>>[] mg = getMutSigGistic(recurrent);
@@ -215,12 +206,10 @@ public class Integrator
 		for (String gene : recurrent)
 		{
 			List<String> list = new ArrayList<String>();
-			for (int i = 0; i < study.length; i++)
+			for (String s : study)
 			{
-				String s = study[i];
 				if (!genesMap.containsKey(s)) continue;
-				if (genesMap.get(s).contains(gene))
-					list.add(i < study.length - 2 ? code[i] : i == study.length - 2 ? code[i] + "-cna" : code[i-1] + "-mut");
+				if (genesMap.get(s).contains(gene)) list.add(s);
 			}
 			System.out.println(gene + ": " + list);
 		}
@@ -285,7 +274,7 @@ public class Integrator
 			double score = Double.parseDouble(row[0]);
 			if (score > cutoff) break;
 
-			List<String> group = new ArrayList<String>(Arrays.asList(row).subList(1, row.length));
+			List<String> group = new ArrayList<String>(Arrays.asList(row).subList(2, row.length));
 			groups.add(group);
 		}
 		return groups;
@@ -429,8 +418,11 @@ public class Integrator
 		Set<String> allGistic = new HashSet<String>();
 		Set<String> allMutsig = new HashSet<String>();
 
-		for (String c : code)
+		for (String c : study)
 		{
+			if (c.contains("-")) c = c.substring(0, c.indexOf("-"));
+			if (mutsig.containsKey(c)) continue;
+
 			mutsig.put(c, BroadAccessor.getMutsigGenes(c, 0.05, true));
 			gistic.put(c, BroadAccessor.getGisticGenes(c, 0.05));
 
@@ -442,7 +434,7 @@ public class Integrator
 		{
 			mutsigCnt.put(gene, new ArrayList<String>());
 			gisticCnt.put(gene, new ArrayList<String>());
-			for (String c : code)
+			for (String c : mutsig.keySet())
 			{
 				if (mutsig.get(c).contains(gene)) mutsigCnt.get(gene).add(c);
 				if (gistic.get(c).contains(gene)) gisticCnt.get(gene).add(c);
