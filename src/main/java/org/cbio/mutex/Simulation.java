@@ -6,6 +6,7 @@ import org.cbio.causality.idmapping.EntrezGene;
 import org.cbio.causality.model.Alteration;
 import org.cbio.causality.model.AlterationPack;
 import org.cbio.causality.model.Change;
+import org.cbio.causality.util.FDR;
 import org.cbio.causality.util.Histogram;
 import org.cbio.causality.util.TermCounter;
 
@@ -758,6 +759,37 @@ public class Simulation
 			}
 
 		}
+	}
+
+	public static void plotEstimatedVsActualFDR(Map<String, Group> groupsOfSeeds, Map<String, Double> resultScores, List<Double> nullDist, int randIter2, int allSize, int trueSize)
+	{
+		System.out.println("allSize = " + allSize);
+		System.out.println("trueSize = " + trueSize);
+
+		for (int i = 1; i < 100; i++)
+		{
+			double estimateFDR = i / (double) 100;
+
+			List<String> selectedSeeds = FDR.select(resultScores, estimateFDR, nullDist, randIter2);
+
+			Set<String> genes = new HashSet<String>();
+
+			for (String seed : selectedSeeds)
+			{
+				genes.addAll(groupsOfSeeds.get(seed).getGeneNames());
+			}
+
+			int f = 0;
+			for (String gene : genes)
+			{
+				if (gene.startsWith("F")) f++;
+			}
+
+			double actualFDR = f / (double) genes.size();
+
+			System.out.println(estimateFDR + "\t" + actualFDR);
+		}
+		System.out.println();
 	}
 
 	public static void main(String[] args) throws IOException, ClassNotFoundException

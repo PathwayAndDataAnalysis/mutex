@@ -23,12 +23,6 @@ public class MutexGreedySearcher implements Serializable
 	private Graph graph;
 
 	/**
-	 * When the search space is not reduced using the network (graph == null), this map helps to
-	 * reduce the number of randomizations and makes the search faster.
-	 */
-	private Map<Integer, List<Double>> noGraphMemory;
-
-	/**
 	 * A null distribution is sampled until the number of values smaller than the current compared
 	 * value is equal to this number, or up to iteration limit.
 	 */
@@ -44,7 +38,6 @@ public class MutexGreedySearcher implements Serializable
 	{
 		this.genes = geneAlts;
 		this.graph = graph;
-		if (graph == null) noGraphMemory = new HashMap<Integer, List<Double>>();
 	}
 
 	public Map<String, Group> getGroupsOfSeeds(Collection<String> seeds, int maxGroupSize,
@@ -151,11 +144,6 @@ public class MutexGreedySearcher implements Serializable
 	private void assignNullScoreDistr(GeneAlt gene, int maxGroupSize, int randomIteration,
 		double score)
 	{
-		if (graph == null && noGraphMemory.containsKey(gene.getAltCnt()))
-		{
-			gene.setRandScores(noGraphMemory.get(gene.getAltCnt()));
-		}
-
 		if (gene.randScores != null &&
 			(gene.randScores.size() == randomIteration || // already met highest
 				(gene.randScores.size() >= HIGH_ACCURACY && gene.randScores.get(HIGH_ACCURACY - 1) <= score) || // already high accuracy
@@ -167,8 +155,6 @@ public class MutexGreedySearcher implements Serializable
 		Collections.sort(dist);
 		gene.setRandScores(dist);
 		gene.unshuffle();
-
-		if (graph == null) noGraphMemory.put(gene.getAltCnt(), dist);
 	}
 
 	private List<Double> getNullDist(GeneAlt gene, int maxGroupSize, int randomIteration,

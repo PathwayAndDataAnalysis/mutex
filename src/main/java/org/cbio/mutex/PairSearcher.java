@@ -1,5 +1,6 @@
 package org.cbio.mutex;
 
+import org.cbio.causality.util.Kronometre;
 import org.cbio.causality.util.Overlap;
 
 import java.io.BufferedWriter;
@@ -25,7 +26,7 @@ public class PairSearcher
 		this.genes = genes;
 	}
 
-	public void search(String filename, Map<String, String> labelMap) throws IOException
+	public void search(String filename) throws IOException
 	{
 		List<GeneAlt[]> pairs = new ArrayList<GeneAlt[]>();
 		for (GeneAlt g1 : genes.values())
@@ -59,9 +60,20 @@ public class PairSearcher
 
 		for (GeneAlt[] pair : pairs)
 		{
-			writer.write(labelMap.get(pair[0].getId()) + "\t" + labelMap.get(pair[1].getId()) + "\n");
+			writer.write(pair[0].getId() + "\t" + pair[1].getId() + "\n");
 		}
 
 		writer.close();
+	}
+
+	public static void main(String[] args) throws IOException
+	{
+		Kronometre kron = new Kronometre();
+		Main.dataFileName = "data-simulation/large-dataset/DataMatrix.txt";
+		Map<String, GeneAlt> genes = Main.loadAlterations();
+		PairSearcher ps = new PairSearcher(genes);
+		ps.search("pair-results.txt");
+		kron.stop();
+		kron.print();
 	}
 }

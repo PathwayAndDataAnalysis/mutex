@@ -72,16 +72,23 @@ public class Group implements Serializable
 
 		if (candidate == null)
 		{
-			int mergeCnt = ArrayUtil.countValue(merge, true);
-
-			for (GeneAlt member : members)
+			if (members.size() == 1)
 			{
-				int ov = ArrayUtil.countValue(overlaps.get(member), true);
-				int a1 = member.getAltCnt();
-				int a2 = mergeCnt - a1 + ov;
+				pvals.put(members.get(0).getId(), 1D);
+			}
+			else
+			{
+				int mergeCnt = ArrayUtil.countValue(merge, true);
 
-				double pval = Overlap.calcMutexPval(merge.length, ov, a1, a2);
-				pvals.put(member.getId(), pval);
+				for (GeneAlt member : members)
+				{
+					int ov = ArrayUtil.countValue(overlaps.get(member), true);
+					int a1 = member.getAltCnt();
+					int a2 = mergeCnt - a1 + ov;
+
+					double pval = Overlap.calcMutexPval(merge.length, ov, a1, a2);
+					pvals.put(member.getId(), pval);
+				}
 			}
 		}
 		else

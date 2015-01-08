@@ -7,11 +7,8 @@ import org.cbio.causality.network.PathwayCommons;
 import org.cbio.causality.network.SPIKE;
 import org.cbio.causality.network.SignaLink;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.io.*;
+import java.util.*;
 
 /**
  * @author Ozgun Babur
@@ -26,7 +23,8 @@ public class Network extends Graph
 		load(new FileInputStream(filename), Collections.<String>emptySet(),
 			new HashSet<String>(Arrays.asList(
 				SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag(),
-				SIFEnum.CONTROLS_EXPRESSION_OF.getTag())));
+				SIFEnum.CONTROLS_EXPRESSION_OF.getTag(),
+				"is-upstream-of")));
 
 		linker = new SIFLinker();
 		linker.load(this);
@@ -62,4 +60,55 @@ public class Network extends Graph
 		return graphSig;
 	}
 
+	public static void main(String[] args)
+	{
+		try
+		{
+			mergeNetworkFiles();
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+		System.exit(0);
+		Network n = new Network();
+		final Map<String, Integer> degreeMap = new HashMap<String, Integer>();
+		for (String sym : n.getSymbols())
+		{
+			degreeMap.put(sym, n.getUpstream(sym).size());
+		}
+		List<String> genes = new ArrayList<String>(degreeMap.keySet());
+		Collections.sort(genes, new Comparator<String>()
+		{
+			@Override
+			public int compare(String o1, String o2)
+			{
+				return degreeMap.get(o2).compareTo(degreeMap.get(o1));
+			}
+		});
+
+		for (int i = 0; i < 100; i++)
+		{
+			String gene = genes.get(i);
+			System.out.println((i+ 1) + "\t" + degreeMap.get(gene) + "\t" + gene);
+		}
+	}
+
+	private static void mergeNetworkFiles() throws IOException
+	{
+		BufferedWriter writer = new BufferedWriter(new FileWriter("Network.sif"));
+		Scanner sc = new Scanner(new File("Network-PTM.sif"));
+		while (sc.hasNextLine())
+		{
+			String[] token = sc.nextLine().split("\t");
+			writer.write(token[0] + "\t" + token[1] + "\t" + token[2] + "\n");
+		}
+		sc = new Scanner(new File("Network-TR.sif"));
+		while (sc.hasNextLine())
+		{
+			String[] token = sc.nextLine().split("\t");
+			writer.write(token[0] + "\t" + token[1] + "\t" + token[2] + "\n");
+		}
+		writer.close();
+	}
 }

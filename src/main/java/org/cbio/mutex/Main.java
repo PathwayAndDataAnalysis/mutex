@@ -37,7 +37,7 @@ public class Main
 	/**
 	 * Directory that contains parameters file.
 	 */
-	private static String dir;
+	public static String dir;
 
 	/**
 	 * Whether to reduce the search space using signaling networks.
@@ -45,15 +45,9 @@ public class Main
 	private static boolean useGraph = true;
 
 	/**
-	 * The null distributions are cached after a run. The cache will be ignored if this parameter
-	 * is set to true.
-	 */
-	private static boolean ignoreCache = false;
-
-	/**
 	 * The name of the tab-delimited file containing gene alterations.
 	 */
-	protected static String dataFileName;
+	public static String dataFileName;
 
 	/**
 	 * Name of the signaling network file. No need to specify this to use the default network.
@@ -81,12 +75,20 @@ public class Main
 	 */
 	private static String literatureKeywords;
 
+	/**
+	 * Parameters for auto-downloading data matrix from cBioPortal.
+	 */
 	private static String portalStudyID;
 	private static String portalCaseListID;
 	private static String portalExpProfileID;
 	private static String portalCNAProfileID;
 	private static String portalMutProfileID;
 	private static Double minAltRatio;
+
+	/**
+	 * Parameter to run the analysis on a randomized set of alterations.
+	 */
+	private static boolean randomizeDataMatrix = false;
 
 	public static void main(String[] args) throws IOException, ClassNotFoundException
 	{
@@ -120,6 +122,7 @@ public class Main
 		else
 		{
 			search();
+//			searchOnRandomized();
 		}
 
 		kron.stop();
@@ -134,13 +137,18 @@ public class Main
 		randIter2 = 100;
 		dir = null;
 		useGraph = true;
-		ignoreCache = false;
 		dataFileName = null;
 		networkFilename = null;
 		network = null;
 		symbolsFile = null;
 		subtypeDatasetName = null;
 		literatureKeywords = null;
+		portalStudyID = null;
+		portalCaseListID = null;
+		portalExpProfileID = null;
+		portalCNAProfileID = null;
+		portalMutProfileID = null;
+		randomizeDataMatrix = false;
 	}
 
 	/**
@@ -169,7 +177,7 @@ public class Main
 		System.out.println("Directory = " + dir);
 
 		// load the alteration data
-		Map<String, GeneAlt> genesMap = readCache();
+		Map<String, GeneAlt> genesMap = readCache("data-cache");
 		if (genesMap == null) genesMap = loadAlterations();
 
 		// if the data needs to be downloaded from cBioPortal, do it
@@ -178,6 +186,16 @@ public class Main
 			downloadPortalData();
 			loadParameters();
 			genesMap = loadAlterations();
+		}
+
+		if (randomizeDataMatrix)
+		{
+			System.out.print("Randomizing data matrix ... ");
+			for (GeneAlt gene : genesMap.values())
+			{
+				gene.shufflePermanent();
+			}
+			System.out.println("done");
 		}
 
 		System.out.println("Number of genes = " + genesMap.size());
@@ -189,9 +207,9 @@ public class Main
 
 		Map<String, Group> groupsOfSeeds = searcher.getGroupsOfSeeds(symbols, maxGroupSize,
 			randIter1);
-		cacheData(genesMap);
+		cacheData(genesMap, "data-cache");
 
-		writeRankedGroups(groupsOfSeeds);
+		writeRankedGroups(groupsOfSeeds, null, "ranked-groups.txt");
 
 		// we are done if we won't cutoff from an fdr
 		if (randIter2 <= 0) return;
@@ -201,6 +219,8 @@ public class Main
 		int cnt = readRandomPvals(nullDist);
 		if (cnt < randIter2) generateRandomPvals(searcher, symbols, nullDist, randIter2 - cnt);
 
+		writeRankedGroups(groupsOfSeeds, nullDist, "ranked-groups.txt");
+
 		// Apply FDR cutoff
 		Map<String, Double> resultScores = new HashMap<String, Double>();
 		for (String id : groupsOfSeeds.keySet())
@@ -208,8 +228,13 @@ public class Main
 			resultScores.put(id, groupsOfSeeds.get(id).calcFinalScore());
 		}
 
-		double bestFDR = decideBestFDR(resultScores, nullDist, randIter2);
-		if (fdrThr < 0) fdrThr = bestFDR;
+		if (dir.contains("simulation1")) Simulation.plotEstimatedVsActualFDR(groupsOfSeeds, resultScores, nullDist, randIter2, 830, 150);
+		else if (dir.contains("simulation2")) Simulation.plotEstimatedVsActualFDR(groupsOfSeeds, resultScores, nullDist, randIter2, 156, 60);
+
+		if (fdrThr < 0)
+		{
+			fdrThr = decideBestFDR(resultScores, nullDist, randIter2);
+		}
 
 		System.out.println("Selected FDR = " + fdrThr);
 		if (fdrThr < 0) return;
@@ -241,24 +266,56 @@ public class Main
 		// sort the list favoring high-coverage
 		Group.sortToCoverage(groups);
 
-		SubtypeAligner sa = subtypeDatasetName == null ? null :
-			new SubtypeAligner(PortalDatasetEnum.find(subtypeDatasetName), Group.collectGenes(groups));
+		SubtypeAligner sa = null;
+//		SubtypeAligner sa = subtypeDatasetName == null ? null :
+//			new SubtypeAligner(PortalDatasetEnum.find(subtypeDatasetName), Group.collectGenes(groups));
 
 		// Write the output graph to visualize in ChiBE
-		if (useGraph) GraphWriter.write(groups, genesMap, network, dir, dataFileName, sa);
+		if (useGraph) GraphWriter.write(groups, genesMap, network, dir, dir, sa);
 
-		System.out.println("\nMutex groups\n------------\n");
+
+		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + "oncoprint.txt"));
 
 		// Print textual results
 		for (Group group : groups)
 		{
-			System.out.println(group.getPrint(sa, null, true, useGraph) + "\n");
+			writer.write(group.getPrint(sa, null, true, useGraph) + "\n\n");
 		}
+		writer.close();
 
-		if (literatureKeywords != null) printAnnotations(getGenes(groups, genesMap));
+//		if (literatureKeywords != null) printAnnotations(getGenes(groups, genesMap));
 	}
 
-	private static List<String> getGenes(List<Group> groups,
+	public static void searchOnRandomized() throws IOException, ClassNotFoundException
+	{
+		System.out.println("----------------------------------------\n");
+		System.out.println("Directory = " + dir);
+
+		// load the alteration data
+		Map<String, GeneAlt> genesMap = loadAlterations();
+
+		System.out.print("Randomizing data matrix ... ");
+		for (GeneAlt gene : genesMap.values())
+		{
+			gene.shufflePermanent();
+		}
+		System.out.println("done");
+
+		System.out.println("Number of genes = " + genesMap.size());
+		System.out.println("Number of samples = " + genesMap.values().iterator().next().size());
+
+		MutexGreedySearcher searcher = new MutexGreedySearcher(genesMap, network);
+
+		Set<String> symbols = genesMap.keySet();
+
+		Map<String, Group> groupsOfSeeds = searcher.getGroupsOfSeeds(symbols, maxGroupSize,
+			randIter1);
+
+		cacheData(genesMap, "random-cache");
+		writeRankedGroups(groupsOfSeeds, null, "ranked-groups-random.txt");
+	}
+
+		private static List<String> getGenes(List<Group> groups,
 		final Map<String, GeneAlt> genesMap)
 	{
 		Set<String> genes = new HashSet<String>();
@@ -341,28 +398,28 @@ public class Main
 			"should be separated with the = sign. parameters.txt file can contain the below " +
 			"parameters:\n\n");
 
-		System.out.println("data-file: Name of the data file. Mandatory.\n\n" +
+		System.out.println(
+			"data-file: Name of the data file. Mandatory.\n\n" +
 			"max-group-size: The maximum size of a result mutex group. Integer value. Default is 5.\n\n" +
 			"first-level-random-iteration: Number of randomization to estimate null distribution of member p-values in mutex groups. Integer. Default is 10000.\n\n" +
 			"second-level-random-iteration: Number of runs to estimate the null distribution of final scores. Integer. Default is 100. If FDR control on results is not required and only the ranking of the result groups is sufficient, set this parameter to 0.\n\n" +
 			"fdr-cutoff: Users can select a specific FDR cutoff. When not provided, or when set to a negative value, the FDR cutoff that maximizes the expected value of true positives - false positives is used.\n\n" +
 			"search-on-signaling-network: Whether to reduce the search space using the signaling network. true or false. Default is true.\n\n" +
-			"ignore-cache: After a run, the null distribution estimates of gene p-values are cached to a file named data-cache. To ignore this cache in the later run, set this parameter to false. Alternatively, you can delete or rename the cache file.\n\n" +
 			"genes-file: This parameter can be used to limit the search to a subset of genes. The file should contain a gene symbol per line.\n\n" +
 			"network-file: To customize the signaling network, users can use this parameter. The tab-delimited network file should contain 3 columns (Gene Symbol 1, interaction-type, Gene Symbol 2).");
 	}
 
-	private static void cacheData(Map<String, GeneAlt> geneMap) throws IOException
+	private static void cacheData(Map<String, GeneAlt> geneMap, String filename) throws IOException
 	{
-		ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(dir + "data-cache"));
+		ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(dir + filename));
 		out.writeObject(geneMap);
 		out.close();
 	}
 
-	private static Map<String, GeneAlt> readCache() throws IOException, ClassNotFoundException
+	public static Map<String, GeneAlt> readCache(String filename) throws IOException, ClassNotFoundException
 	{
-		File file = new File(dir + "data-cache");
-		if (!ignoreCache && file.exists())
+		File file = new File((dir == null ? "" : dir + File.separator) + filename);
+		if (file.exists())
 		{
 			ObjectInputStream in = new ObjectInputStream(new FileInputStream(file));
 			Map<String, GeneAlt> map = (Map<String, GeneAlt>) in.readObject();
@@ -433,7 +490,7 @@ public class Main
 	/**
 	 * Writes ordered mutex groups in a file.
 	 */
-	private static void writeRankedGroups(Map<String, Group> groupMap) throws IOException
+	private static void writeRankedGroups(Map<String, Group> groupMap, List<Double> nullDist, String filename) throws IOException
 	{
 		final Map<String, Double> scoreMap = new HashMap<String, Double>();
 		for (String id : groupMap.keySet())
@@ -451,14 +508,23 @@ public class Main
 			}
 		});
 
-		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + "ranked-groups.txt"));
+		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + filename));
 
-		writer.write("Score\tMembers");
+		writer.write(nullDist == null? "Score\tMembers" : "Score\tq-val\tMembers");
+		int i = 0;
 		for (String seed : sorted)
 		{
 			Group group = groupMap.get(seed);
+			i++;
 
-			writer.write("\n" + group.calcFinalScore());
+			double score = group.calcFinalScore();
+			writer.write("\n" + score);
+
+			if (nullDist != null)
+			{
+				double qval = (countFalsePositive(nullDist, score) / (double) randIter2) / i;
+				writer.write("\t" + qval);
+			}
 
 			for (String name : group.getGeneNames())
 			{
@@ -467,6 +533,16 @@ public class Main
 		}
 
 		writer.close();
+	}
+
+	private static int countFalsePositive(List<Double> nullDist, double thr)
+	{
+		int cnt = 0;
+		for (Double v : nullDist)
+		{
+			if (v <= thr) cnt++;
+		}
+		return cnt;
 	}
 
 	private static int readRandomPvals(List<Double> vals) throws FileNotFoundException
@@ -581,8 +657,9 @@ public class Main
 		reader.setGeneSymbols(readSymbolsFile());
 		reader.setUseNetwork(useGraph);
 		reader.setOutputDir(dir);
-		reader.setOutputFileName("Data.txt");
-		reader.prepareDataDirectory();
+		reader.setOutputFileName("DataMatrix.txt");
+		reader.loadDataset();
+		reader.updateParametersFile(new File(dir + "parameters.txt"));
 	}
 
 	private static boolean loadParameters() throws FileNotFoundException
@@ -642,10 +719,6 @@ public class Main
 			{
 				subtypeDatasetName = token[1];
 			}
-			else if (token[0].equals("ignore-cache"))
-			{
-				ignoreCache = Boolean.parseBoolean(token[1]);
-			}
 			else if (token[0].equals("keywords"))
 			{
 				literatureKeywords = token[1];
@@ -673,6 +746,10 @@ public class Main
 			else if (token[0].equals("minimum-alteration-ratio"))
 			{
 				minAltRatio = new Double(token[1]);
+			}
+			else if (token[0].equals("randomize-data-matrix"))
+			{
+				randomizeDataMatrix = Boolean.parseBoolean(token[1]);
 			}
 		}
 		return true;
