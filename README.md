@@ -9,6 +9,7 @@ git clone https://github.com/luca-dex/mutex
 You can customize Mutex by editing sources with your favorite Java IDE, such as IntelliJ IDEA or Eclipse. If you don't want to use an IDE, follow the steps below.
 
 Compile
+--
 Go into the project directory, and tell maven to compile the project.
 
 ```
@@ -16,6 +17,7 @@ cd mutex
 mvn clean compile
 ```
 Prepare Jar
+--
 ```
 mvn assembly:single
 ```
