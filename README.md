@@ -2,6 +2,7 @@
 Automatically exported from code.google.com/p/mutex
 
 Download sources
+--
 To pull the source code from repository:
 ```
 git clone https://github.com/luca-dex/mutex
@@ -24,6 +25,7 @@ mvn assembly:single
 This will create mutex.jar under the target folder in the project directory.
 
 Run Mutex
+--
 To run Mutex, users first should prepare their dataset of gene alterations as a tab-delimited text file, where the first row contains column headings and first column contains gene symbols.
 
 ```
