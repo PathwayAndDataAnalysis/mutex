@@ -24,6 +24,10 @@ mvn assembly:single
 ```
 This will create mutex.jar under the target folder in the project directory.
 
+Add PC.sif.gz
+--
+For some reason tt looks like Google is limiting access to large files in googlecode repositories. Please download this file from http://cbio.mskcc.org/~ozgun/PC.sif.gz, and extract the file PC.sif into the working directory. This file will be replaced with a directory named PC once the code is run.
+
 Run Mutex
 --
 To run Mutex, users first should prepare their dataset of gene alterations as a tab-delimited text file, where the first row contains column headings and first column contains gene symbols.
