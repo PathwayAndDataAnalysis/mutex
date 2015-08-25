@@ -5,7 +5,7 @@ Download sources
 --
 To pull the source code from repository:
 ```
-git clone https://github.com/luca-dex/mutex
+git clone https://github.com/ozgunbabur/mutex
 ```
 You can customize Mutex by editing sources with your favorite Java IDE, such as IntelliJ IDEA or Eclipse. If you don't want to use an IDE, follow the steps below.
 
@@ -24,9 +24,9 @@ mvn assembly:single
 ```
 This will create mutex.jar under the target folder in the project directory.
 
-Add PC.sif.gz
+Add PC.sif
 --
-For some reason tt looks like Google is limiting access to large files in googlecode repositories. Please download this file from http://cbio.mskcc.org/~ozgun/PC.sif.gz, and extract the file PC.sif into the working directory. This file will be replaced with a directory named PC once the code is run.
+For some reason tt looks like Google is limiting access to large files in googlecode repositories. Please download this file from http://cbio.mskcc.org/~ozgun/PC.sif.gz, and extract the file PC.sif into the working directory (same folder of `mutex.jar`). This file will be replaced with a directory named PC once the code is run.
 
 Run Mutex
 --
@@ -43,28 +43,23 @@ Gene3      0           0         0      ...
 Use following encoding for gene alterations.
 --
 
-0: No alteration
+* `0`: No alteration
+* `1`: Mutation
+* `2`: Amplification
+* `3`: Deletion
+* `4`: Mutation and amplification
+* `5`: Mutation and deletion
 
-1: Mutation
+Then users should prepare a file named `parameters.txt` and place it in a directory together with the dataset file. The `parameters.txt` file should contain a line that points to the dataset (assume the name of the dataset file is `dataset.txt`).
 
-2: Amplification
-
-3: Deletion
-
-4: Mutation and amplification
-
-5: Mutation and deletion
-
-Then users should prepare a file named "parameters.txt" and place it in a directory together with the dataset file. The parameters.txt file should contain a line that points to the dataset (assume the name of the dataset file is dataset.txt).
-
-`data-file` = dataset.txt
+`data-file` = `dataset.txt`
 The other possible parameters (below) are optional.
 
-`max-group-size`: The maximum size of a result mutex group. Integer value. Default is 5.
+`max-group-size`: The maximum size of a result mutex group. Integer value. Default is `5`.
 
-`first-level-random-iteration`: Number of randomization to estimate null distribution of member p-values in mutex groups. Integer. Default is 10000.
+`first-level-random-iteration`: Number of randomization to estimate null distribution of member p-values in mutex groups. Integer. Default is `10000`.
 
-`second-level-random-iteration`: Number of runs to estimate the null distribution of final scores. Integer. Default is 100. If FDR control on results is not required and only the ranking of the result groups is sufficient, set this parameter to 0.
+`second-level-random-iteration`: Number of runs to estimate the null distribution of final scores. Integer. Default is `100`. If FDR control on results is not required and only the ranking of the result groups is sufficient, set this parameter to `0`.
 
 `fdr-cutoff`: Users can select a specific FDR cutoff. When not provided, or when set to a negative value, the FDR cutoff that maximizes the expected value of true positives - false positives is used.
 
@@ -72,7 +67,7 @@ The other possible parameters (below) are optional.
 
 `genes-file`: This parameter can be used to limit the search to a subset of genes. The file should contain a gene symbol per line.
 
-`network-file`: To customize the signaling network, users can use this parameter. The network file should be a tab-delimited text file with 3 columns (Gene Symbol 1<tab>interaction-type<tab>Gene Symbol 2). The valid values for interaction-type are "controls-state-change-of" and "controls-expression-of". The first type is meant to be used for post-translational modification relations between proteins, and the second relation is for transcriptional regulations.
+`network-file`: To customize the signaling network, users can use this parameter. The network file should be a tab-delimited text file with 3 columns (`Gene Symbol 1<tab>interaction-type<tab>Gene Symbol 2`). The valid values for interaction-type are `controls-state-change-of` and `controls-expression-of`. The first type is meant to be used for post-translational modification relations between proteins, and the second relation is for transcriptional regulations.
 
 Run Mutex with the following command.
 --
