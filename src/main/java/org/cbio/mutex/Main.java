@@ -76,6 +76,11 @@ public class Main
 	private static String literatureKeywords;
 
 	/**
+	 * Minimum nnumber of altered samples for a gene to be included in the study.
+	 */
+	private static Integer minAltCntThr;
+
+	/**
 	 * Parameters for auto-downloading data matrix from cBioPortal.
 	 */
 	private static String portalStudyID;
@@ -149,6 +154,7 @@ public class Main
 		portalCNAProfileID = null;
 		portalMutProfileID = null;
 		randomizeDataMatrix = false;
+		minAltCntThr = null;
 	}
 
 	/**
@@ -181,7 +187,7 @@ public class Main
 		if (genesMap == null) genesMap = loadAlterations();
 
 		// if the data needs to be downloaded from cBioPortal, do it
-		if (genesMap == null && symbolsFile != null && portalStudyID != null)
+		if (genesMap == null && portalStudyID != null)
 		{
 			downloadPortalData();
 			loadParameters();
@@ -204,6 +210,7 @@ public class Main
 		MutexGreedySearcher searcher = new MutexGreedySearcher(genesMap, network);
 
 		Set<String> symbols = genesMap.keySet();
+		if (network != null) symbols.retainAll(network.getSymbols());
 
 		Map<String, Group> groupsOfSeeds = searcher.getGroupsOfSeeds(symbols, maxGroupSize,
 			randIter1);
@@ -444,6 +451,13 @@ public class Main
 		{
 			String[] token = line.split("\t");
 			GeneAlt gene = new GeneAlt(token);
+
+			if (minAltCntThr != null)
+			{
+				int altCnt = gene.countAltered();
+				if (altCnt < minAltCntThr) continue;
+			}
+
 			map.put(gene.id, gene);
 		}
 
@@ -654,7 +668,7 @@ public class Main
 			if (minAltRatio != null) dataset.minAltThr = minAltRatio;
 		}
 		PortalReader reader = new PortalReader(dataset);
-		reader.setGeneSymbols(readSymbolsFile());
+		if (symbolsFile != null) reader.setGeneSymbols(readSymbolsFile());
 		reader.setUseNetwork(useGraph);
 		reader.setOutputDir(dir);
 		reader.setOutputFileName("DataMatrix.txt");
@@ -750,6 +764,10 @@ public class Main
 			else if (token[0].equals("randomize-data-matrix"))
 			{
 				randomizeDataMatrix = Boolean.parseBoolean(token[1]);
+			}
+			else if (token[0].equals("minimum-alteration-count-threshold"))
+			{
+				minAltCntThr = Integer.parseInt(token[1]);
 			}
 		}
 		return true;

@@ -127,6 +127,7 @@ public class Integrator
 	}
 
 	private static void printTargets(Map<String, List<List<String>>> groupsMap, int howMany)
+		throws FileNotFoundException
 	{
 		Graph graph = new Network();
 

@@ -1,9 +1,7 @@
 package org.cbio.mutex;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.Writer;
+import java.io.*;
+import java.util.*;
 
 /**
  * This class generates SVG code for a given oncoprint.
@@ -15,17 +13,57 @@ public class Oncoprint
 	static int id = 0;
 	public static void main(String[] args) throws IOException
 	{
-		String s =
-					"MM................................................................................................\n" +
-					"..MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMD................................................................\n" +
-					".......................DDDDDDDDDDDMMDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD.......\n" +
-					"......................M....................................................................AAAAAAA";
+//		String s =  "MM................................................................................................\n" +
+//					"..MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMD................................................................\n" +
+//					".......................DDDDDDDDDDDMMDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD.......\n" +
+//					"......................M....................................................................AAAAAAA";
+//		write(s, "temp.svg");
 
-		BufferedWriter writer = new BufferedWriter(new FileWriter("temp.svg"));
+		String dir = "/home/ozgun/Documents/TCGA/SARC/mutex/All/";
+		generate((
+			"SPTBN4\n" +
+			"FRS2\n" +
+			"EFNB3\n" +
+			"TP53\n" +
+			"MDM2\n" +
+			"CTDSP2").split("\n"), dir + "DataMatrix.txt", dir + "oncoprint/story3.svg", false);
+//		generateAllOncoprints(dir);
+	}
+
+	public static void generateAllOncoprints(String dir, boolean includeUnaltered) throws IOException
+	{
+		new File(dir + "oncoprint").mkdirs();
+		Scanner sc = new Scanner(new File(dir + "oncoprint.txt"));
+		while (sc.hasNextLine())
+		{
+			String line = sc.nextLine();
+			if (line.startsWith("["))
+			{
+				String s = line.substring(0, line.indexOf("\t"));
+				s = s.substring(1, s.length() - 1);
+				String[] genes = s.split(" ");
+				generate(genes, dir + "DataMatrix.txt", dir + "oncoprint/" +
+					Arrays.toString(genes) + ".svg", includeUnaltered);
+			}
+		}
+	}
+
+	public static void generate(String[] genes, String matrixFile, String outFile,
+		boolean includeUnaltered) throws IOException
+	{
+		int[][] matrix = readFromMatrixFile(genes, matrixFile);
+		List<Integer> order = getPrintOrdering(matrix);
+		String oncoprint = convertMatrixToString(matrix, order, includeUnaltered);
+		write(oncoprint, outFile);
+	}
+
+	private static void write(String oncoString, String filename) throws IOException
+	{
+		BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
 		writer.write(header);
 
 		int row = 0;
-		String[] lines = s.split("\n");
+		String[] lines = oncoString.split("\n");
 		for (String letters : lines)
 		{
 			for (int i = 0; i < letters.length(); i++)
@@ -77,6 +115,199 @@ public class Oncoprint
 			writer.write(s);
 		}
 
+	}
+
+	private static String convertMatrixToString(int[][] matrix, List<Integer> order,
+		boolean includeUnaltered)
+	{
+		StringBuffer sb = new StringBuffer();
+		for (int i = 0; i < matrix.length; i++)
+		{
+			if (i > 0) sb.append("\n");
+
+			for (int j = 0; j < order.size(); j++)
+			{
+				int sample = order.get(j);
+				if (!includeUnaltered)
+				{
+					boolean b = false;
+					for (int k = 0; k < matrix.length; k++)
+					{
+						if (matrix[k][sample] != 0)
+						{
+							b = true;
+							break;
+						}
+					}
+					if (!b) break;
+				}
+
+				sb.append(letterCode(matrix[i][sample]));
+			}
+		}
+		return sb.toString();
+	}
+
+	private static String letterCode(int alt)
+	{
+		switch (alt)
+		{
+			case 0: return ".";
+			case 1: return "M";
+			case 2: return "A";
+			case 3: return "D";
+			case 4: return "B";
+			case 5: return "E";
+			default: throw new IllegalArgumentException("Illegal alteration value: " + alt);
+		}
+	}
+
+	private static int[][] readFromMatrixFile(String[] genes, String file) throws FileNotFoundException
+	{
+		Set<String> set = new HashSet<String>(Arrays.asList(genes));
+		int[][] x = new int[genes.length][];
+		Scanner sc = new Scanner(new File(file));
+		sc.nextLine();
+
+		while (sc.hasNextLine())
+		{
+			String line = sc.nextLine();
+			String sym = line.substring(0, line.indexOf("\t"));
+			if (set.contains(sym))
+			{
+				int[] alts = convert(line.substring(line.indexOf("\t") + 1));
+
+				for (int i = 0; i < genes.length; i++)
+				{
+					if (genes[i].equals(sym)) x[i] = alts;
+				}
+			}
+		}
+		return x;
+	}
+
+	/**
+	 * Gets an ordering for the samples to make the oncoprint look nicer.
+	 * @return sample ordering for printing oncoprint
+	 */
+	private static List<Integer> getPrintOrdering(int[][] matrix)
+	{
+		List<Integer> order = new ArrayList<Integer>();
+
+		int sampleSize = matrix[0].length;
+		final int geneSize = matrix.length;
+
+		for (int i = 0; i < sampleSize; i++)
+		{
+			order.add(i);
+		}
+
+		final boolean[][] marks = new boolean[sampleSize][];
+
+		for (int i = 0; i < sampleSize; i++)
+		{
+			marks[i] = alterationMarks(matrix, i);
+		}
+
+		final boolean[][] mut = new boolean[geneSize][];
+		final boolean[][] cna = new boolean[geneSize][];
+
+		for (int i = 0; i < geneSize; i++)
+		{
+			mut[i] = getMutated(matrix[i]);
+			cna[i] = getCNAltered(matrix[i]);
+		}
+
+		Collections.sort(order, new Comparator<Integer>()
+		{
+			@Override
+			public int compare(Integer o1, Integer o2)
+			{
+				boolean[] m1 = marks[o1];
+				boolean[] m2 = marks[o2];
+
+				int c = 0;
+				for (int i = 0; i < geneSize; i++)
+				{
+					if (m1[i] && !m2[i]) c = -1;
+					if (!m1[i] && m2[i]) c = 1;
+					if (c != 0) break;
+				}
+
+				if (c != 0)
+				{
+					if (getNumberOfInitialPositiveAltOverlap(m1, m2) % 2 == 1) return -c;
+					else return c;
+				}
+
+				for (int i = 0; i < geneSize; i++)
+				{
+					if (mut[i][o1] && !mut[i][o2]) return -1;
+					if (!mut[i][o1] && mut[i][o2]) return 1;
+					if (cna[i][o1] && !cna[i][o2]) return 1;
+					if (!cna[i][o1] && cna[i][o2]) return -1;
+				}
+
+				return 0;
+			}
+		});
+
+		return order;
+	}
+
+	private static boolean[] alterationMarks(int[][] matrix, int sample)
+	{
+		boolean[] b = new boolean[matrix.length];
+		for (int i = 0; i < b.length; i++)
+		{
+			b[i] = matrix[i][sample] != 0;
+		}
+		return b;
+	}
+
+	private static int getNumberOfInitialPositiveAltOverlap(boolean[] m1, boolean[] m2)
+	{
+		int x = 0;
+
+		for (int i = 0; i < m1.length; i++)
+		{
+			if (!m1[i] && !m2[i] && x == 0) continue;
+
+			if (m1[i] && m2[i]) x++;
+			else break;
+		}
+		return x;
+	}
+
+	private static boolean[] getMutated(int[] alts)
+	{
+		boolean[] m = new boolean[alts.length];
+		for (int i = 0; i < alts.length; i++)
+		{
+			m[i] = alts[i] == 1 || alts[i] == 4 || alts[i] == 5;
+		}
+		return m;
+	}
+
+	private static boolean[] getCNAltered(int[] alts)
+	{
+		boolean[] c = new boolean[alts.length];
+		for (int i = 0; i < alts.length; i++)
+		{
+			c[i] = alts[i] == 2 || alts[i] == 3 || alts[i] == 4 || alts[i] == 5;
+		}
+		return c;
+	}
+
+	private static int[] convert(String altStr)
+	{
+		String[] token = altStr.split("\t");
+		int[] alts = new int[token.length];
+		for (int i = 0; i < alts.length; i++)
+		{
+			alts[i] = Integer.parseInt(token[i]);
+		}
+		return alts;
 	}
 
 	public static final String header = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n" +

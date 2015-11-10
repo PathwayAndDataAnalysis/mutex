@@ -9,7 +9,7 @@
 	<version>1.1.0</version>
 
 	<properties>
-		<causality.version>1.0.0</causality.version>
+		<causality.version>1.0.1-SNAPSHOT</causality.version>
 	</properties>
 
 	<repositories>

@@ -2,6 +2,7 @@ package org.cbio.mutex;
 
 import org.biopax.paxtools.pattern.miner.SIFEnum;
 import org.cbio.causality.util.FormatUtil;
+import org.cbio.causality.util.Overlap;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -26,6 +27,9 @@ public class GraphWriter
 	public static void write(List<Group> groups, Map<String, GeneAlt> geneMap,
 		Network network, String dir, String graphName, SubtypeAligner sa) throws IOException
 	{
+		// All genes in mutex groups, ignoring targets
+		Set<String> genesInGroups = new HashSet<String>();
+
 		Set<String> to = getTargetOnly(groups);
 		OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(dir + "merged-network.sif"));
 
@@ -62,6 +66,7 @@ public class GraphWriter
 			}
 
 			List<String> memNames = group.getGeneNames();
+			genesInGroups.addAll(memNames);
 			List<String> tarNames = new ArrayList<String>();
 
 			// write target nodes
@@ -72,7 +77,7 @@ public class GraphWriter
 					tarNames.add(tarName);
 				}
 				// limit targets to one
-				if (tarNames.size() == 1) break;
+				if (tarNames.size() == 10) break;
 			}
 
 			for (String tarName : tarNames)
@@ -145,6 +150,30 @@ public class GraphWriter
 			writer.write("node\t" + target + "\tbordercolor\t255 255 255\n");
 			writer.write("node\t" + target + "\ttextcolor\t155 155 155\n");
 		}
+		writer.close();
+
+		// Write co-occurrence graph
+
+		writer = new OutputStreamWriter(new FileOutputStream(dir + "co-occurred.sif"));
+
+		for (String sym1 : genesInGroups)
+		{
+			for (String sym2 : genesInGroups)
+			{
+				if (sym1.compareTo(sym2) >= 0) continue;
+
+				GeneAlt gene1 = geneMap.get(sym1);
+				GeneAlt gene2 = geneMap.get(sym2);
+
+				double pv = Overlap.calcCoocPval(gene1.getBooleanChanges(), gene2.getBooleanChanges());
+
+				if (pv < 0.05)
+				{
+					writer.write(sym1 + "\tinteracts-with\t" + sym2 + "\n");
+				}
+			}
+		}
+
 		writer.close();
 	}
 
