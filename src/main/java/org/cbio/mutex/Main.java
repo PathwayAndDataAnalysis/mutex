@@ -81,6 +81,17 @@ public class Main
 	private static Integer minAltCntThr;
 
 	/**
+	 * Number of genes to limit the study. This is useful to restrict the analysis to top X most significantly
+	 * altered genes.
+	 */
+	private static Integer geneLimit;
+
+	/**
+	 * A file to provide ordering of genes, higher priority first.
+	 */
+	private static String geneRankingFile;
+
+	/**
 	 * Parameters for auto-downloading data matrix from cBioPortal.
 	 */
 	private static String portalStudyID;
@@ -155,6 +166,8 @@ public class Main
 		portalMutProfileID = null;
 		randomizeDataMatrix = false;
 		minAltCntThr = null;
+		geneLimit = null;
+		geneRankingFile = null;
 	}
 
 	/**
@@ -464,6 +477,20 @@ public class Main
 		reader.close();
 		crop(map);
 
+		if (geneLimit != null)
+		{
+			List<String> ranking = readGeneRanking();
+			if (ranking != null)
+			{
+				Collections.reverse(ranking);
+				Iterator<String> iter = ranking.iterator();
+				while (map.size() > geneLimit && iter.hasNext())
+				{
+					map.remove(iter.next());
+				}
+			}
+		}
+
 		return map;
 	}
 
@@ -482,6 +509,22 @@ public class Main
 		{
 			map.remove(symbol);
 		}
+	}
+
+	private static List<String> readGeneRanking() throws FileNotFoundException
+	{
+		if (geneRankingFile == null) return null;
+		if (!new File(geneRankingFile).exists()) return null;
+
+		List<String> list = new ArrayList<String>();
+		Scanner sc = new Scanner(new File(geneRankingFile));
+		sc.nextLine();
+		while (sc.hasNextLine())
+		{
+			String[] token = sc.nextLine().split("\t");
+			if (token.length > 0) list.add(token[0]);
+		}
+		return list;
 	}
 
 	private static Set<String> readSymbolsFile() throws FileNotFoundException
@@ -768,6 +811,14 @@ public class Main
 			else if (token[0].equals("minimum-alteration-count-threshold"))
 			{
 				minAltCntThr = Integer.parseInt(token[1]);
+			}
+			else if (token[0].equals("gene-limit"))
+			{
+				geneLimit = Integer.parseInt(token[1]);
+			}
+			else if (token[0].equals("gene-ranking-file"))
+			{
+				geneRankingFile = dir + token[1];
 			}
 		}
 		return true;
