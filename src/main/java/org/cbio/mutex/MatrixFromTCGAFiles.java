@@ -51,6 +51,7 @@ public class MatrixFromTCGAFiles
 		Map<String, Double> delScores = readCNAScores(delScoreFile);
 		List<Gene> rankedGenes = getScoredGenes(genes, samples, cnaR, expR, mutsigScores, ampScores, delScores);
 
+		if (!new File(outDir).exists()) new File(outDir).mkdirs();
 		BufferedWriter wM = new BufferedWriter(new FileWriter(outDir + "/DataMatrix.txt"));
 		BufferedWriter wR = new BufferedWriter(new FileWriter(outDir + "/RankedGenes.txt"));
 
@@ -213,8 +214,9 @@ public class MatrixFromTCGAFiles
 //
 //		prepare(mutFile, cnaFile, expFile, dir + "UPS/");
 
-		String dir = "C:/Users/babur/Documents/TCGA/BRCA";
-		String out = "C:/Users/babur/Documents/mutex/TCGA/BRCA";
+		String study = "LUAD";
+		String dir = "C:/Users/babur/Documents/TCGA/" + study;
+		String out = "C:/Users/babur/Documents/mutex/TCGA/" + study;
 		prepare(dir, out);
 	}
 }

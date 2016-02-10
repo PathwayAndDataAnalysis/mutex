@@ -477,7 +477,7 @@ public class Main
 		reader.close();
 		crop(map);
 
-		if (geneLimit != null)
+		if (geneLimit != null && map.size() > geneLimit)
 		{
 			List<String> ranking = readGeneRanking();
 			if (ranking != null)
@@ -487,6 +487,29 @@ public class Main
 				while (map.size() > geneLimit && iter.hasNext())
 				{
 					map.remove(iter.next());
+				}
+			}
+			else
+			{
+				List<String> names = new ArrayList<String>(map.keySet());
+				final Map<String, Integer> cnt = new HashMap<String, Integer>();
+				for (String name : map.keySet())
+				{
+					cnt.put(name, map.get(name).countAltered());
+				}
+				Collections.sort(names, new Comparator<String>()
+				{
+					@Override
+					public int compare(String o1, String o2)
+					{
+						return cnt.get(o2).compareTo(cnt.get(o1));
+					}
+				});
+				int thr = cnt.get(names.get(geneLimit + 1));
+				System.out.println("Alteration cnt threshold > " + thr);
+				for (String name : cnt.keySet())
+				{
+					if (cnt.get(name) <= thr) map.remove(name);
 				}
 			}
 		}
