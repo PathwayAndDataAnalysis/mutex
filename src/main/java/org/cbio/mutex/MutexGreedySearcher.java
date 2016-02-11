@@ -93,21 +93,31 @@ public class MutexGreedySearcher implements Serializable
 		while(true);
 	}
 
-	public List<Double> generateRandPvals(Set<String> names, int maxGroupSize, int randIter1)
+	public List<Double> generateRandPvals(Set<String> names, Set<String> noShuffle,
+		int maxGroupSize, int randIter1)
 	{
 		Progress prog = new Progress(names.size(), "Generating a random run for final scores null distribution");
 		List<Double> ll = new ArrayList<Double>(names.size());
 
-		for (GeneAlt gene : genes.values()) gene.shuffleSticky();
+		for (GeneAlt gene : genes.values())
+		{
+			if (noShuffle == null || !noShuffle.contains(gene.getId()))
+			{
+				gene.shuffleSticky();
+			}
+		}
 
 		Map<String, Double> map = new HashMap<String, Double>();
 		Map<String, Group> groups = new HashMap<String, Group>();
 
 		for (String seed : names)
 		{
-			Group group = getGroupOfSeed(seed, maxGroupSize, randIter1);
+			if (noShuffle == null || !noShuffle.contains(seed))
+			{
+				Group group = getGroupOfSeed(seed, maxGroupSize, randIter1);
 
-			if (group != null) groups.put(seed, group);
+				if (group != null) groups.put(seed, group);
+			}
 			prog.tick();
 		}
 

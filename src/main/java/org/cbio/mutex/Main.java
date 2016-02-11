@@ -182,7 +182,8 @@ public class Main
 
 		MutexGreedySearcher searcher = new MutexGreedySearcher(genesMap, network);
 		Set<String> symbols = genesMap.keySet();
-		generateRandomPvals(searcher, symbols, null, howMany);
+		Set<String> noShuffle = loadHighlySignificantGenes();
+		generateRandomPvals(searcher, symbols, noShuffle, null, howMany);
 	}
 
 	/**
@@ -237,7 +238,11 @@ public class Main
 		// Load and/or generate final scores null distribution
 		List<Double> nullDist = new ArrayList<Double>();
 		int cnt = readRandomPvals(nullDist);
-		if (cnt < randIter2) generateRandomPvals(searcher, symbols, nullDist, randIter2 - cnt);
+		if (cnt < randIter2)
+		{
+			generateRandomPvals(searcher, symbols, loadHighlySignificantGenes(), nullDist,
+				randIter2 - cnt);
+		}
 
 		writeRankedGroups(groupsOfSeeds, nullDist, "ranked-groups.txt");
 
@@ -651,7 +656,7 @@ public class Main
 	}
 
 	private static void generateRandomPvals(MutexGreedySearcher searcher, Set<String> genes,
-		List<Double> vals, int howMany) throws IOException
+		Set<String> noShuffle, List<Double> vals, int howMany) throws IOException
 	{
 		String directory = dir + "randscores/";
 		File d = new File(directory);
@@ -660,7 +665,7 @@ public class Main
 		for (int i = 0; i < howMany; i++)
 		{
 			System.out.println("iteration = " + (i + 1));
-			List<Double> list = searcher.generateRandPvals(genes, maxGroupSize, randIter1);
+			List<Double> list = searcher.generateRandPvals(genes, noShuffle, maxGroupSize, randIter1);
 			if (vals != null) vals.addAll(list);
 
 			Collections.sort(list);
@@ -713,6 +718,26 @@ public class Main
 		if (bestFDR == 0.5) return -1;
 
 		return bestFDR;
+	}
+
+	private static Set<String> loadHighlySignificantGenes() throws FileNotFoundException
+	{
+		Set<String> set = new HashSet<String>();
+		File f = new File(dir + "ranked-groups.txt");
+		if (!f.exists()) return null;
+
+		Scanner sc = new Scanner(f);
+		boolean hasQval = sc.nextLine().split("\t").length > 2;
+
+		while (sc.hasNextLine())
+		{
+			String[] token = sc.nextLine().split("\t");
+			double pval = Double.parseDouble(token[0]);
+			if (pval >= 0.01) break;
+			set.add(token[hasQval ? 2 : 1]);
+		}
+		sc.close();
+		return set;
 	}
 
 	private static void downloadPortalData() throws IOException

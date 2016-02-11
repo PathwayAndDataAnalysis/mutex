@@ -5,6 +5,8 @@ import org.cbio.causality.data.tcgafile.ExpressionReader;
 import org.cbio.causality.data.tcgafile.MutationReader;
 import org.cbio.causality.util.ArrayUtil;
 import org.cbio.causality.util.FishersCombinedProbability;
+import org.cbio.causality.util.StudentsT;
+import org.cbio.causality.util.Summary;
 
 import java.io.*;
 import java.util.*;
@@ -72,6 +74,11 @@ public class MatrixFromTCGAFiles
 			if ((mut == null || ArrayUtil.countValue(mut, true) == 0) &&
 				(cna == null || ArrayUtil.countValue(cna, 0) == cna.length)) continue;
 
+			if (!considerExpressed(exp, getAltered(mut, cna), 6, 0.05))
+			{
+//				System.out.println(name + " is considered not expressed.");
+				continue;
+			}
 
 			wM.write("\n" + name);
 			for (int i = 0; i < samples.length; i++)
@@ -152,6 +159,45 @@ public class MatrixFromTCGAFiles
 		return map;
 	}
 
+	/**
+	 * This methods checks if the mean expression of the gene is above a threshold, OR
+	 * the altered samples are differently expressed. If one of those holds, then the gene is
+	 * considered expressed in the dataset.
+	 * @param exp
+	 * @param altered
+	 * @param meanExpThr
+	 * @param diffExpPvalThr
+	 * @return
+	 */
+	private static boolean considerExpressed(double[] exp, boolean[] altered, double meanExpThr,
+		double diffExpPvalThr)
+	{
+		double mean = Summary.mean(exp);
+		if (mean > meanExpThr) return true;
+
+		double[] e1 = ArrayUtil.subset(exp, altered);
+		if (e1.length == 0) return false;
+		double[] e0 = ArrayUtil.subset(exp, ArrayUtil.negate(altered));
+		if (e0.length == 0) return false;
+
+		double pval = StudentsT.getPValOfMeanDifference(e1, e0);
+		return pval <= diffExpPvalThr;
+	}
+
+	private static boolean[] getAltered(boolean[] mut, int[] cna)
+	{
+		boolean[] alt = new boolean[mut.length];
+		System.arraycopy(mut, 0, alt, 0, mut.length);
+
+		if (cna == null) return alt;
+
+		for (int i = 0; i < cna.length; i++)
+		{
+			if (cna[i] != 0) alt[i] = true;
+		}
+		return alt;
+	}
+
 	static class Gene implements Comparable
 	{
 		String name;
@@ -214,7 +260,7 @@ public class MatrixFromTCGAFiles
 //
 //		prepare(mutFile, cnaFile, expFile, dir + "UPS/");
 
-		String study = "LUAD";
+		String study = "UVM";
 		String dir = "C:/Users/babur/Documents/TCGA/" + study;
 		String out = "C:/Users/babur/Documents/mutex/TCGA/" + study;
 		prepare(dir, out);
