@@ -92,6 +92,12 @@ public class Main
 	private static String geneRankingFile;
 
 	/**
+	 * Tells even if there is need of random runs to estimate FDR, don't do it and just write result
+	 * without FDR estimation.
+	 */
+	private static boolean noRandomRun = false;
+
+	/**
 	 * Parameters for auto-downloading data matrix from cBioPortal.
 	 */
 	private static String portalStudyID;
@@ -137,6 +143,7 @@ public class Main
 		}
 		else
 		{
+			noRandomRun = args.length > 1 && args[1].equals("no-random-run");
 			search();
 //			searchOnRandomized();
 		}
@@ -240,6 +247,8 @@ public class Main
 		int cnt = readRandomPvals(nullDist);
 		if (cnt < randIter2)
 		{
+			if (noRandomRun) return;
+
 			generateRandomPvals(searcher, symbols, loadHighlySignificantGenes(), nullDist,
 				randIter2 - cnt);
 		}
