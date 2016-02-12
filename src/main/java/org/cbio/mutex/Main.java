@@ -743,7 +743,7 @@ public class Main
 			String[] token = sc.nextLine().split("\t");
 			double pval = Double.parseDouble(token[0]);
 			if (pval >= 0.01) break;
-			set.add(token[hasQval ? 2 : 1]);
+			set.addAll(Arrays.asList(token).subList(hasQval ? 2 : 1, token.length));
 		}
 		sc.close();
 		return set;
