@@ -19,6 +19,17 @@ import java.util.*;
  */
 public class MatrixFromTCGAFiles
 {
+	public static void prepareMulti(String dir, String outDir) throws IOException
+	{
+		for (File f : new File(dir).listFiles())
+		{
+			if (f.isDirectory())
+			{
+				prepare(f.getPath(), outDir + "/" + f.getName());
+			}
+		}
+	}
+
 	public static void prepare(String dir, String outDir) throws IOException
 	{
 		prepare(dir + "/mutation.maf", dir + "/copynumber.txt", dir + "/expression.txt",
@@ -53,8 +64,8 @@ public class MatrixFromTCGAFiles
 		Map<String, Double> delScores = readCNAScores(delScoreFile);
 		List<Gene> rankedGenes = getScoredGenes(genes, samples, cnaR, expR, mutsigScores, ampScores, delScores);
 
-		if (!new File(outDir).exists()) new File(outDir).mkdirs();
-		BufferedWriter wM = new BufferedWriter(new FileWriter(outDir + "/DataMatrix.txt"));
+		if (!new File(outDir + "/whole").exists()) new File(outDir).mkdirs();
+		BufferedWriter wM = new BufferedWriter(new FileWriter(outDir + "/whole/DataMatrix.txt"));
 		BufferedWriter wR = new BufferedWriter(new FileWriter(outDir + "/RankedGenes.txt"));
 
 		for (String sample : samples)
@@ -260,9 +271,13 @@ public class MatrixFromTCGAFiles
 //
 //		prepare(mutFile, cnaFile, expFile, dir + "UPS/");
 
-		String study = "UVM";
-		String dir = "C:/Users/babur/Documents/TCGA/" + study;
-		String out = "C:/Users/babur/Documents/mutex/TCGA/" + study;
-		prepare(dir, out);
+//		String study = "UVM";
+//		String dir = "C:/Users/babur/Documents/TCGA/" + study;
+//		String out = "C:/Users/babur/Documents/mutex/TCGA/" + study;
+//		prepare(dir, out);
+
+		String dir = "C:/Users/babur/Documents/TCGA";
+		String out = "C:/Users/babur/Documents/mutex/TCGA";
+		prepareMulti(dir, out);
 	}
 }
