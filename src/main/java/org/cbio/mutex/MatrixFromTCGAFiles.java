@@ -64,7 +64,7 @@ public class MatrixFromTCGAFiles
 		Map<String, Double> delScores = readCNAScores(delScoreFile);
 		List<Gene> rankedGenes = getScoredGenes(genes, samples, cnaR, expR, mutsigScores, ampScores, delScores);
 
-		if (!new File(outDir + "/whole").exists()) new File(outDir).mkdirs();
+		if (!new File(outDir + "/whole").exists()) new File(outDir + "/whole").mkdirs();
 		BufferedWriter wM = new BufferedWriter(new FileWriter(outDir + "/whole/DataMatrix.txt"));
 		BufferedWriter wR = new BufferedWriter(new FileWriter(outDir + "/RankedGenes.txt"));
 
