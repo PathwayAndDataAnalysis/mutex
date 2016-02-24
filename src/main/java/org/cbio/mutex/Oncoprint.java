@@ -32,8 +32,8 @@ public class Oncoprint
 
 	public static void generateAllOncoprints(String dir, boolean includeUnaltered) throws IOException
 	{
-		new File(dir + "oncoprint").mkdirs();
-		Scanner sc = new Scanner(new File(dir + "oncoprint.txt"));
+		new File(dir + "/oncoprint").mkdirs();
+		Scanner sc = new Scanner(new File(dir + "/oncoprint.txt"));
 		while (sc.hasNextLine())
 		{
 			String line = sc.nextLine();

@@ -497,6 +497,12 @@ public class Main
 			if (ranking != null)
 			{
 				Collections.reverse(ranking);
+
+				for (String gene : new HashSet<String>(map.keySet()))
+				{
+					if (!ranking.contains(gene)) map.remove(gene);
+				}
+
 				Iterator<String> iter = ranking.iterator();
 				while (map.size() > geneLimit && iter.hasNext())
 				{
