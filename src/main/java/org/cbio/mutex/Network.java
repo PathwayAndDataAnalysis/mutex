@@ -20,29 +20,21 @@ public class Network extends Graph
 	public Network(String filename) throws FileNotFoundException
 	{
 		super("directed network", "is-upstream-of");
-		Graph graphSig = loadPTRGraph(filename);
-		Graph graphTR = loadTRGraph(filename);
-		merge(graphSig);
-		merge(graphTR);
-		load(new FileInputStream(filename), Collections.<String>emptySet(),
-			new HashSet<String>(Arrays.asList("is-upstream-of")));
-
 		linker = new SIFLinker();
-		linker.load(this);
-		linker.load(graphSig);
-		linker.load(graphTR);
+		addResource(filename);
 	}
 
 	public Network() throws FileNotFoundException
 	{
-		super("directed network", "is-upstream-of");
-		Graph graphSig = loadPTRGraph(null);
-		Graph graphTR = loadTRGraph(null);
-		merge(graphSig);
-		merge(graphTR);
-		linker = new SIFLinker();
-		linker.load(graphSig);
-		linker.load(graphTR);
+		this(null);
+	}
+
+	public void addResource(String filename) throws FileNotFoundException
+	{
+		linker.load(loadPTRGraph(filename));
+		linker.load(loadTRGraph(filename));
+		linker.load(loadIsUpstreamOfGraph(filename));
+		merge(linker.graph);
 	}
 
 	private static Graph loadTRGraph(String filename) throws FileNotFoundException
@@ -78,6 +70,16 @@ public class Network extends Graph
 				new HashSet<String>(Arrays.asList(SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag())));
 		}
 		return graphSig;
+	}
+
+	private static Graph loadIsUpstreamOfGraph(String filename) throws FileNotFoundException
+	{
+		Graph graph = new Graph("signaling relations", "is-upstream-of");
+
+		if (filename != null) graph.load(new FileInputStream(filename), Collections.<String>emptySet(),
+			new HashSet<String>(Arrays.asList("is-upstream-of")));
+
+		return graph;
 	}
 
 	public static void main(String[] args) throws FileNotFoundException

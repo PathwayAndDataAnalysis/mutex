@@ -77,7 +77,7 @@ public class GraphWriter
 					tarNames.add(tarName);
 				}
 				// limit targets to one
-				if (tarNames.size() == 10) break;
+				if (tarNames.size() == 1) break;
 			}
 
 			for (String tarName : tarNames)
@@ -112,10 +112,15 @@ public class GraphWriter
 				{
 					s += "\tlinecolor:50 100 150";
 				}
-				else
+				else if (tok[1].equals(SIFEnum.CONTROLS_EXPRESSION_OF.getTag()))
 				{
 					s += "\tlinecolor:50 150 50\tstyle:Dashed";
 				}
+				else
+				{
+					s += "\tlinecolor:50 50 50";
+				}
+
 				writer.write(rel + "\n");
 			}
 		}
@@ -167,13 +172,17 @@ public class GraphWriter
 
 				double pv = Overlap.calcCoocPval(gene1.getBooleanChanges(), gene2.getBooleanChanges());
 
-				if (pv < 0.05)
+				if (pv < 0.01)
 				{
 					writer.write(sym1 + "\tinteracts-with\t" + sym2 + "\n");
 				}
 			}
 		}
 
+		writer.close();
+		writer = new OutputStreamWriter(new FileOutputStream(dir + "co-occurred.format"));
+		writer.write(  "node\tall-nodes\tcolor\t255 255 255");
+		writer.write("\nnode\tall-nodes\tbordercolor\t0 0 0");
 		writer.close();
 	}
 

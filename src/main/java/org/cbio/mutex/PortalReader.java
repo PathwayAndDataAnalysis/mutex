@@ -445,9 +445,7 @@ public class PortalReader
 
 			cntMap.put(id, cnt);
 
-			// todo don't forget here!
-//			if ((cnt / (double) ch.length) < dataset.minAltThr)
-			if ((cnt / (double) ch.length) < 0.01)
+			if ((cnt / (double) ch.length) < dataset.minAltThr)
 			{
 				remove.add(id);
 			}

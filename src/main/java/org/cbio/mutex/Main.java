@@ -20,6 +20,11 @@ public class Main
 	public static double fdrThr = -1;
 
 	/**
+	 * Score threshold is used as an alternative to FDR threshold.
+	 */
+	public static double scoreThr = -1;
+
+	/**
 	 * Maximum group size to use during the searches.
 	 */
 	public static int maxGroupSize = 5;
@@ -32,7 +37,7 @@ public class Main
 	/**
 	 * Number of iterations to estimate the null distribution of final group scores.
 	 */
-	public static int randIter2 = 100;
+	public static int randIter2;
 
 	/**
 	 * Directory that contains parameters file.
@@ -52,7 +57,7 @@ public class Main
 	/**
 	 * Name of the signaling network file. No need to specify this to use the default network.
 	 */
-	private static String networkFilename;
+	private static Set<String> networkFilename;
 
 	/**
 	 * The signaling network.
@@ -126,8 +131,14 @@ public class Main
 
 		if (!loadParameters()) System.exit(1);
 
-		if (useGraph) network = networkFilename == null ?
-			new Network() : new Network(networkFilename);
+		if (useGraph)
+		{
+			for (String name : networkFilename)
+			{
+				if (network == null) network = new Network(name);
+				else network.addResource(name);
+			}
+		}
 
 		if (args.length > 1 && args[1].equals("random"))
 		{
@@ -155,11 +166,12 @@ public class Main
 	public static void reset()
 	{
 		fdrThr = -1;
+		scoreThr = -1;
 		maxGroupSize = 5;
 		randIter1 = 10000;
-		randIter2 = 100;
+		randIter2 = 0;
 		dir = null;
-		useGraph = true;
+		useGraph = false;
 		dataFileName = null;
 		networkFilename = null;
 		network = null;
@@ -175,6 +187,7 @@ public class Main
 		minAltCntThr = null;
 		geneLimit = null;
 		geneRankingFile = null;
+		network = null;
 	}
 
 	/**
@@ -239,21 +252,22 @@ public class Main
 
 		writeRankedGroups(groupsOfSeeds, null, "ranked-groups.txt");
 
-		// we are done if we won't cutoff from an fdr
-		if (randIter2 <= 0) return;
+		// we are done if we won't cutoff from an fdr or a score
+		if (randIter2 <= 0 && scoreThr < 0) return;
 
 		// Load and/or generate final scores null distribution
 		List<Double> nullDist = new ArrayList<Double>();
-		int cnt = readRandomPvals(nullDist);
-		if (cnt < randIter2)
+
+		if (!noRandomRun && randIter2 > 0)
 		{
-			if (noRandomRun) return;
-
-			generateRandomPvals(searcher, symbols, loadHighlySignificantGenes(), nullDist,
-				randIter2 - cnt);
+			int cnt = readRandomPvals(nullDist);
+			if (cnt < randIter2)
+			{
+				generateRandomPvals(searcher, symbols, loadHighlySignificantGenes(), nullDist,
+					randIter2 - cnt);
+			}
+			writeRankedGroups(groupsOfSeeds, nullDist, "ranked-groups.txt");
 		}
-
-		writeRankedGroups(groupsOfSeeds, nullDist, "ranked-groups.txt");
 
 		// Apply FDR cutoff
 		Map<String, Double> resultScores = new HashMap<String, Double>();
@@ -262,25 +276,19 @@ public class Main
 			resultScores.put(id, groupsOfSeeds.get(id).calcFinalScore());
 		}
 
-		if (dir.contains("simulation1")) Simulation.plotEstimatedVsActualFDR(groupsOfSeeds, resultScores, nullDist, randIter2, 830, 150);
-		else if (dir.contains("simulation2")) Simulation.plotEstimatedVsActualFDR(groupsOfSeeds, resultScores, nullDist, randIter2, 156, 60);
+//		if (dir.contains("simulation1")) Simulation.plotEstimatedVsActualFDR(groupsOfSeeds, resultScores, nullDist, randIter2, 830, 150);
+//		else if (dir.contains("simulation2")) Simulation.plotEstimatedVsActualFDR(groupsOfSeeds, resultScores, nullDist, randIter2, 156, 60);
 
-		if (fdrThr < 0)
+		if (fdrThr < 0 && scoreThr < 0)
 		{
 			fdrThr = decideBestFDR(resultScores, nullDist, randIter2);
 		}
 
 		System.out.println("Selected FDR = " + fdrThr);
-		if (fdrThr < 0) return;
+		if (fdrThr < 0 && scoreThr < 0) return;
 
-		List<String> selectedSeeds = FDR.select(resultScores, fdrThr, nullDist, randIter2);
-
-		// Find threshold score
-		double thrScore = 0;
-		for (String seed : selectedSeeds)
-		{
-			if (resultScores.get(seed) > thrScore) thrScore = resultScores.get(seed);
-		}
+		List<String> selectedSeeds = fdrThr >= 0 ? FDR.select(resultScores, fdrThr, nullDist, randIter2) :
+			selectWithScore(resultScores, scoreThr);
 
 		List<Group> groups = new ArrayList<Group>(selectedSeeds.size());
 		for (String seed : selectedSeeds)
@@ -414,6 +422,24 @@ public class Main
 		System.out.println("\nNot associated with any cancer: " + notAssoc.size());
 		System.out.println(notAssoc);
 		System.out.println("\n\n");
+	}
+
+	private static List<String> selectWithScore(final Map<String, Double> resultScores, double thr)
+	{
+		List<String> list = new ArrayList<String>();
+		for (String s : resultScores.keySet())
+		{
+			if (resultScores.get(s) <= thr) list.add(s);
+		}
+		Collections.sort(list, new Comparator<String>()
+		{
+			@Override
+			public int compare(String o1, String o2)
+			{
+				return resultScores.get(o1).compareTo(resultScores.get(o2));
+			}
+		});
+		return list;
 	}
 
 	private static boolean contains(String s, String[] q)
@@ -649,7 +675,7 @@ public class Main
 	{
 		String directory = dir + "randscores/";
 		File d = new File(directory);
-		if (!d.exists()) d.mkdirs();
+		if (!d.exists()) return 0;
 
 		int cnt = 0;
 		for (File file : new File(directory).listFiles())
@@ -807,6 +833,10 @@ public class Main
 			{
 				fdrThr = Double.parseDouble(token[1]);
 			}
+			else if (token[0].equals("score-cutoff"))
+			{
+				scoreThr = Double.parseDouble(token[1]);
+			}
 			else if (token[0].equals("max-group-size"))
 			{
 				maxGroupSize = Integer.parseInt(token[1]);
@@ -833,7 +863,8 @@ public class Main
 			}
 			else if (token[0].equals("network-file"))
 			{
-				networkFilename = dir + token[1];
+				if (networkFilename == null) networkFilename = new HashSet<String>();
+				networkFilename.add(dir + token[1]);
 			}
 			else if (token[0].equals("dataset-for-subtype"))
 			{
