@@ -52,8 +52,8 @@ public class MatrixFromTCGAFiles
 
 		System.out.println("samples.size() = " + samples.length);
 
-		Set<String> genes = new HashSet<String>(mutR.getGenes());
-		Set<String> cnaGenes = new HashSet<String>(cnaR.getGenes());
+		Set<String> genes = new HashSet<>(mutR.getGenes());
+		Set<String> cnaGenes = new HashSet<>(cnaR.getGenes());
 		cnaGenes.retainAll(expR.getGenes());
 		genes.addAll(cnaGenes);
 
@@ -114,7 +114,7 @@ public class MatrixFromTCGAFiles
 		CNAReader cnaR, ExpressionReader expR,
 		Map<String, Double> mutsigScores, Map<String, Double> ampScores, Map<String, Double> delScores)
 	{
-		List<Gene> genes = new ArrayList<Gene>();
+		List<Gene> genes = new ArrayList<>();
 		for (String name : geneSet)
 		{
 			Gene gene = new Gene(name);
@@ -133,7 +133,7 @@ public class MatrixFromTCGAFiles
 
 	private static Map<String, Double> readMutsigScores(String filename) throws FileNotFoundException
 	{
-		Map<String, Double> map = new HashMap<String, Double>();
+		Map<String, Double> map = new HashMap<>();
 		Scanner sc = new Scanner(new File(filename));
 		sc.nextLine();
 		while (sc.hasNextLine())
@@ -148,7 +148,7 @@ public class MatrixFromTCGAFiles
 
 	private static Map<String, Double> readCNAScores(String filename) throws FileNotFoundException
 	{
-		Map<String, Double> map = new HashMap<String, Double>();
+		Map<String, Double> map = new HashMap<>();
 		Scanner sc = new Scanner(new File(filename));
 		sc.nextLine();
 		String[] token = sc.nextLine().split("\t");
@@ -271,13 +271,13 @@ public class MatrixFromTCGAFiles
 //
 //		prepare(mutFile, cnaFile, expFile, dir + "UPS/");
 
-		String study = "STES";
-		String dir = "/home/babur/Documents/TCGA/" + study;
-		String out = "/home/babur/Documents/mutex/TCGA/" + study;
-		prepare(dir, out);
+//		String study = "STES";
+//		String dir = "/home/babur/Documents/TCGA/" + study;
+//		String out = "/home/babur/Documents/mutex/TCGA/" + study;
+//		prepare(dir, out);
 
-//		String dir = "/home/babur/Documents/TCGA";
-//		String out = "/home/babur/Documents/mutex/TCGA";
-//		prepareMulti(dir, out);
+		String dir = "/home/babur/Documents/TCGA";
+		String out = "/home/babur/Documents/mutex/TCGA";
+		prepareMulti(dir, out);
 	}
 }
