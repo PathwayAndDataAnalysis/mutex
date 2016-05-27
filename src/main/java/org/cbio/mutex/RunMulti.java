@@ -2,6 +2,8 @@ package org.cbio.mutex;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -17,7 +19,7 @@ public class RunMulti
 		if (args.length < 1) return;
 		String dir = args[0];
 
-		Set<String> avoid = args.length > 1 ? new HashSet<String>(Arrays.asList(args).subList(1, args.length)) :
+		Set<String> avoid = args.length > 1 ? new HashSet<>(Arrays.asList(args).subList(1, args.length)) :
 			Collections.<String>emptySet();
 
 		for (File file : new File(dir).listFiles())
@@ -29,7 +31,8 @@ public class RunMulti
 
 				System.arraycopy(args, 1, a, 1, args.length - 1);
 
-				if (new File(file.getPath() + "/parameters.txt").exists())
+				if (Files.exists(Paths.get(file.getPath() + "/parameters.txt")) &&
+					!Files.exists(Paths.get(file.getPath() + "/ranked-groups.txt")))
 				{
 					Main.main(a);
 				}
