@@ -14,33 +14,18 @@
 
 	<repositories>
 		<repository>
-			<id>central</id>
-			<name>Maven Repository Switchboard</name>
-			<layout>default</layout>
-			<url>http://repo1.maven.org/maven2/</url>
+			<id>panda</id>
+			<name>Pathway and Data Analysis Maven Repo</name>
+			<url>https://raw.githubusercontent.com/PathwayAndDataAnalysis/repo/master/maven-repo/</url>
+			<snapshots><enabled>true</enabled></snapshots>
+		</repository>
+		<repository>
+			<id>ossrh-public</id>
+			<name>OSSRH Maven Repository</name>
+			<url>https://oss.sonatype.org/content/groups/public</url>
 			<snapshots>
 				<enabled>true</enabled>
 			</snapshots>
-		</repository>
-		<repository>
-			<id>maven-repository.dev.java.net</id>
-			<name>Java.net Maven 2 Repository</name>
-			<url>http://download.java.net/maven/2</url>
-		</repository>
-		<repository>
-			<id>biopax.releases</id>
-			<name>BioPAX Snapshots Repository at Sourceforge</name>
-			<url>http://biopax.sourceforge.net/m2repo/releases/</url>
-		</repository>
-		<repository>
-			<id>biopax.snapshots</id>
-			<name>BioPAX Snapshots Repository at Sourceforge</name>
-			<url>http://biopax.sourceforge.net/m2repo/snapshots/</url>
-		</repository>
-		<repository>
-			<id>ozgun.repo</id>
-			<name>Ozgun Repo</name>
-			<url>http://cbio.mskcc.org/~ozgun/m2repo/</url>
 		</repository>
 	</repositories>
 
