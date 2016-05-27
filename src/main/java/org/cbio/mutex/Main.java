@@ -360,15 +360,21 @@ public class Main
 		private static List<String> getGenes(List<Group> groups,
 		final Map<String, GeneAlt> genesMap)
 	{
-		Set<String> genes = new HashSet<String>();
+		Set<String> genes = new HashSet<>();
 		for (Group group : groups)
 		{
 			genes.addAll(group.getGeneNames());
 		}
-		List<String> list = new ArrayList<String>(genes);
+		List<String> list = new ArrayList<>(genes);
 
-		Collections.sort(list, (o1, o2) ->
-			new Integer(genesMap.get(o2).getAltCnt()).compareTo(genesMap.get(o1).getAltCnt()));
+		Collections.sort(list, new Comparator<String>()
+		{
+			@Override
+			public int compare(String o1, String o2)
+			{
+				return new Integer(genesMap.get(o2).getAltCnt()).compareTo(genesMap.get(o1).getAltCnt());
+			}
+		});
 
 		return list;
 	}
