@@ -1,12 +1,12 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.data.tcgafile.CNAReader;
-import org.cbio.causality.data.tcgafile.ExpressionReader;
-import org.cbio.causality.data.tcgafile.MutationReader;
-import org.cbio.causality.util.ArrayUtil;
-import org.cbio.causality.util.FishersCombinedProbability;
-import org.cbio.causality.util.StudentsT;
-import org.cbio.causality.util.Summary;
+import org.panda.resource.tcga.CNAReader;
+import org.panda.resource.tcga.ExpressionReader;
+import org.panda.resource.tcga.MutSigReader;
+import org.panda.resource.tcga.MutationReader;
+import org.panda.utility.ArrayUtil;
+import org.panda.utility.statistics.Summary;
+import org.panda.utility.statistics.TTest;
 
 import java.io.*;
 import java.util.*;
@@ -33,7 +33,7 @@ public class MatrixFromTCGAFiles
 	public static void prepare(String dir, String outDir) throws IOException
 	{
 		prepare(dir + "/mutation.maf", dir + "/copynumber.txt", dir + "/expression.txt",
-			dir + "/scores-mutsig.txt", dir + "/scores-amplified.txt", dir + "/scores-deleted.txt", outDir);
+			dir, dir + "/scores-amplified.txt", dir + "/scores-deleted.txt", outDir);
 	}
 
 	public static void prepare(String mutFile, String CNAFile, String expFile,
@@ -59,7 +59,7 @@ public class MatrixFromTCGAFiles
 
 		System.out.println("genes = " + genes.size());
 
-		Map<String, Double> mutsigScores = readMutsigScores(mutScoreFile);
+		Map<String, Double> mutsigScores = MutSigReader.readPValues(mutScoreFile);
 		Map<String, Double> ampScores = readCNAScores(ampScoreFile);
 		Map<String, Double> delScores = readCNAScores(delScoreFile);
 		List<Gene> rankedGenes = getScoredGenes(genes, samples, cnaR, expR, mutsigScores, ampScores, delScores);
@@ -131,21 +131,6 @@ public class MatrixFromTCGAFiles
 		return genes;
 	}
 
-	private static Map<String, Double> readMutsigScores(String filename) throws FileNotFoundException
-	{
-		Map<String, Double> map = new HashMap<>();
-		Scanner sc = new Scanner(new File(filename));
-		sc.nextLine();
-		while (sc.hasNextLine())
-		{
-			String[] token = sc.nextLine().split("\t");
-			String gene = token[1];
-			double pval = Double.parseDouble(token[token.length-2]);
-			map.put(gene, pval);
-		}
-		return map;
-	}
-
 	private static Map<String, Double> readCNAScores(String filename) throws FileNotFoundException
 	{
 		Map<String, Double> map = new HashMap<>();
@@ -191,7 +176,7 @@ public class MatrixFromTCGAFiles
 		double[] e0 = ArrayUtil.subset(exp, ArrayUtil.negate(altered));
 		if (e0.length == 0) return false;
 
-		double pval = StudentsT.getPValOfMeanDifference(e1, e0);
+		double pval = TTest.getPValOfMeanDifference(e1, e0);
 		return pval <= diffExpPvalThr;
 	}
 

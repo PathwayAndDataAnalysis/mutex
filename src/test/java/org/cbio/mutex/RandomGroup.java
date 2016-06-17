@@ -1,6 +1,11 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.util.*;
+import org.panda.utility.ArrayUtil;
+import org.panda.utility.Progress;
+import org.panda.utility.statistics.Histogram;
+import org.panda.utility.statistics.Overlap;
+import org.panda.utility.statistics.Summary;
+import org.panda.utility.statistics.UniformityChecker;
 
 import java.text.DecimalFormat;
 import java.util.*;
@@ -167,27 +172,24 @@ public class RandomGroup
 
 	private void printWorstDistr(List<Double>[] lists)
 	{
-		double[] v = getWorstPvals(lists);
-
-		Histogram h = new Histogram(0.05);
-		h.setBorderAtZero(true);
-		h.countAll(v);
-		h.printDensity();
+		List<Double> v = getWorstPvals(lists);
+		UniformityChecker.plot(v);
 	}
 
-	private double[] getWorstPvals(List<Double>[] lists)
+	private List<Double> getWorstPvals(List<Double>[] lists)
 	{
-		double[] v = new double[lists[0].size()];
+		int size = lists[0].size();
+		List<Double> v = new ArrayList<>(size);
 
-		for (int i = 0; i < v.length; i++)
+		for (int i = 0; i < size; i++)
 		{
 			double x = 0;
 			for (List<Double> list : lists)
 			{
 				if (list.get(i) > x) x = list.get(i);
 			}
-			v[i] = 0;//todo
-//			v[i] = x;
+			v.add(0D);//todo
+//			v.add(x);
 		}
 		return v;
 	}
@@ -243,12 +245,6 @@ public class RandomGroup
 		}
 	}
 
-	private void printHisto(double[] v)
-	{
-		DiscretePvalHisto h = new DiscretePvalHisto(v, 0.01);
-		h.plot();
-	}
-
 //	private List<Double> selectLeastSignificant(List<Double>[] lists)
 //	{
 //		List<Double> select = new ArrayList<Double>();
@@ -263,9 +259,9 @@ public class RandomGroup
 	{
 		RandomGroup group = new RandomGroup(100, 40, 40, 40);
 		List<Double>[] lists = group.generatePvalsDist(10000);
-		double[] pv = group.getWorstPvals(lists);
+		List<Double> pv = group.getWorstPvals(lists);
 //		group.makeUniform(pv);
-		group.printHisto(pv);
+		UniformityChecker.plot(pv);
 	}
 
 //	public static void main(String[] args)

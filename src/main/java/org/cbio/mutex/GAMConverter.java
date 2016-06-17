@@ -1,7 +1,5 @@
 package org.cbio.mutex;
 
-import org.biopax.paxtools.pattern.constraint.ConstraintAdapter;
-
 import java.io.*;
 import java.util.*;
 

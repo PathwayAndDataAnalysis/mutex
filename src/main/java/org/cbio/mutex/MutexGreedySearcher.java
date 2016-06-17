@@ -1,7 +1,7 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.analysis.Graph;
-import org.cbio.causality.util.Progress;
+import org.panda.utility.Progress;
+import org.panda.utility.graph.Graph;
 
 import java.io.*;
 import java.util.*;
@@ -46,7 +46,7 @@ public class MutexGreedySearcher implements Serializable
 		Progress prg = new Progress(seeds.size(),
 			"Searching for groups of " + seeds.size() + " seeds");
 
-		Map<String, Group> s2g = new HashMap<String, Group>();
+		Map<String, Group> s2g = new HashMap<>();
 		for (String seed : seeds)
 		{
 			Group group = getGroupOfSeed(seed, maxGroupSize, randIter);
@@ -107,8 +107,8 @@ public class MutexGreedySearcher implements Serializable
 			}
 		}
 
-		Map<String, Double> map = new HashMap<String, Double>();
-		Map<String, Group> groups = new HashMap<String, Group>();
+		Map<String, Double> map = new HashMap<>();
+		Map<String, Group> groups = new HashMap<>();
 
 		for (String seed : names)
 		{
@@ -171,7 +171,7 @@ public class MutexGreedySearcher implements Serializable
 		List<Double> startWith, double forValue)
 	{
 		int cnt = 0;
-		if (startWith == null) startWith = new ArrayList<Double>();
+		if (startWith == null) startWith = new ArrayList<>();
 		else cnt = countLessThanOrEqual(startWith, forValue);
 
 		double p = cnt / (double) startWith.size();
@@ -328,7 +328,7 @@ public class MutexGreedySearcher implements Serializable
 	{
 		Set<String> candNames = getCandidateNames(group);
 
-		Set<GeneAlt> candidates = new HashSet<GeneAlt>();
+		Set<GeneAlt> candidates = new HashSet<>();
 
 		for (String cand : candNames)
 		{

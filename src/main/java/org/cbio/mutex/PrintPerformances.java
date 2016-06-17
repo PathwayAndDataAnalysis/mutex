@@ -1,16 +1,18 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.analysis.Graph;
+import org.panda.utility.graph.Graph;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * @deprecated
+ */
 public class PrintPerformances
 {
-	private static final PortalDataset dataset = PortalDatasetEnum.SIMUL2.data;
-	private static final int VERSION = dataset == PortalDatasetEnum.SIMUL1.data ? 1 : dataset == PortalDatasetEnum.SIMUL2.data ? 2 : 3;
+	private static final int VERSION = 1; // or 2 or 3
 
 	public static void main(String[] args) throws IOException, InterruptedException
 	{
@@ -22,8 +24,9 @@ public class PrintPerformances
 	private void printDiscoveryGraphs() throws IOException
 	{
 		Graph graph = new Network();
-		final Map<String, String> labelMap = Simulation.getLabelMap(dataset,
-			Simulation.loadSimData(graph.getSymbols(), dataset).keySet());
+		final Map<String, String> labelMap = null;
+//		final Map<String, String> labelMap = Simulation.getLabelMap(dataset,
+//			Simulation.loadSimData(graph.getSymbols(), dataset).keySet());
 
 		final String base = "/home/ozgun/Documents/mutex-comparison/";
 		CustomResult[] cus = new CustomResult[]{

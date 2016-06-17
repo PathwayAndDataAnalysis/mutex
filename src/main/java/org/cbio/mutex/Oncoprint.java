@@ -164,7 +164,7 @@ public class Oncoprint
 
 	private static int[][] readFromMatrixFile(String[] genes, String file) throws FileNotFoundException
 	{
-		Set<String> set = new HashSet<String>(Arrays.asList(genes));
+		Set<String> set = new HashSet<>(Arrays.asList(genes));
 		int[][] x = new int[genes.length][];
 		Scanner sc = new Scanner(new File(file));
 		sc.nextLine();
@@ -192,7 +192,7 @@ public class Oncoprint
 	 */
 	private static List<Integer> getPrintOrdering(int[][] matrix)
 	{
-		List<Integer> order = new ArrayList<Integer>();
+		List<Integer> order = new ArrayList<>();
 
 		int sampleSize = matrix[0].length;
 		final int geneSize = matrix.length;
@@ -218,38 +218,34 @@ public class Oncoprint
 			cna[i] = getCNAltered(matrix[i]);
 		}
 
-		Collections.sort(order, new Comparator<Integer>()
+		Collections.sort(order, (o1, o2) ->
 		{
-			@Override
-			public int compare(Integer o1, Integer o2)
+			boolean[] m1 = marks[o1];
+			boolean[] m2 = marks[o2];
+
+			int c = 0;
+			for (int i = 0; i < geneSize; i++)
 			{
-				boolean[] m1 = marks[o1];
-				boolean[] m2 = marks[o2];
-
-				int c = 0;
-				for (int i = 0; i < geneSize; i++)
-				{
-					if (m1[i] && !m2[i]) c = -1;
-					if (!m1[i] && m2[i]) c = 1;
-					if (c != 0) break;
-				}
-
-				if (c != 0)
-				{
-					if (getNumberOfInitialPositiveAltOverlap(m1, m2) % 2 == 1) return -c;
-					else return c;
-				}
-
-				for (int i = 0; i < geneSize; i++)
-				{
-					if (mut[i][o1] && !mut[i][o2]) return -1;
-					if (!mut[i][o1] && mut[i][o2]) return 1;
-					if (cna[i][o1] && !cna[i][o2]) return 1;
-					if (!cna[i][o1] && cna[i][o2]) return -1;
-				}
-
-				return 0;
+				if (m1[i] && !m2[i]) c = -1;
+				if (!m1[i] && m2[i]) c = 1;
+				if (c != 0) break;
 			}
+
+			if (c != 0)
+			{
+				if (getNumberOfInitialPositiveAltOverlap(m1, m2) % 2 == 1) return -c;
+				else return c;
+			}
+
+			for (int i = 0; i < geneSize; i++)
+			{
+				if (mut[i][o1] && !mut[i][o2]) return -1;
+				if (!mut[i][o1] && mut[i][o2]) return 1;
+				if (cna[i][o1] && !cna[i][o2]) return 1;
+				if (!cna[i][o1] && cna[i][o2]) return -1;
+			}
+
+			return 0;
 		});
 
 		return order;

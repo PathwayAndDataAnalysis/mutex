@@ -1,8 +1,7 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.data.GeneCards;
-import org.cbio.causality.util.FDR;
-import org.cbio.causality.util.Kronometre;
+import org.panda.utility.Kronometre;
+import org.panda.utility.statistics.FDR;
 
 import java.io.*;
 import java.util.*;
@@ -70,17 +69,6 @@ public class Main
 	private static String symbolsFile;
 
 	/**
-	 * While producing results, if there is an available sub-typing information, nodes are
-	 * highlighted according to the subtype.
-	 */
-	private static String subtypeDatasetName;
-
-	/**
-	 * Keywords associated with the dataset, separated by comma.
-	 */
-	private static String literatureKeywords;
-
-	/**
 	 * Minimum nnumber of altered samples for a gene to be included in the study.
 	 */
 	private static Integer minAltCntThr;
@@ -101,16 +89,6 @@ public class Main
 	 * without FDR estimation.
 	 */
 	private static boolean noRandomRun = false;
-
-	/**
-	 * Parameters for auto-downloading data matrix from cBioPortal.
-	 */
-	private static String portalStudyID;
-	private static String portalCaseListID;
-	private static String portalExpProfileID;
-	private static String portalCNAProfileID;
-	private static String portalMutProfileID;
-	private static Double minAltRatio;
 
 	/**
 	 * Parameter to run the analysis on a randomized set of alterations.
@@ -176,13 +154,6 @@ public class Main
 		networkFilename = null;
 		network = null;
 		symbolsFile = null;
-		subtypeDatasetName = null;
-		literatureKeywords = null;
-		portalStudyID = null;
-		portalCaseListID = null;
-		portalExpProfileID = null;
-		portalCNAProfileID = null;
-		portalMutProfileID = null;
 		randomizeDataMatrix = false;
 		minAltCntThr = null;
 		geneLimit = null;
@@ -221,11 +192,10 @@ public class Main
 		if (genesMap == null) genesMap = loadAlterations();
 
 		// if the data needs to be downloaded from cBioPortal, do it
-		if (genesMap == null && portalStudyID != null)
+		if (genesMap == null)
 		{
-			downloadPortalData();
-			loadParameters();
-			genesMap = loadAlterations();
+			System.err.println("Cannot load alterations.");
+			return;
 		}
 
 		if (randomizeDataMatrix)
@@ -290,7 +260,7 @@ public class Main
 		List<String> selectedSeeds = fdrThr >= 0 ? FDR.select(resultScores, fdrThr, nullDist, randIter2) :
 			selectWithScore(resultScores, scoreThr);
 
-		List<Group> groups = new ArrayList<Group>(selectedSeeds.size());
+		List<Group> groups = new ArrayList<>(selectedSeeds.size());
 		for (String seed : selectedSeeds)
 		{
 			Group group = groupsOfSeeds.get(seed);
@@ -308,12 +278,8 @@ public class Main
 		// sort the list favoring high-coverage
 		Group.sortToCoverage(groups);
 
-		SubtypeAligner sa = null;
-//		SubtypeAligner sa = subtypeDatasetName == null ? null :
-//			new SubtypeAligner(PortalDatasetEnum.find(subtypeDatasetName), Group.collectGenes(groups));
-
 		// Write the output graph to visualize in ChiBE
-		if (useGraph) GraphWriter.write(groups, genesMap, network, dir, dir, sa);
+		if (useGraph) GraphWriter.write(groups, genesMap, network, dir, dir);
 
 
 		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + "oncoprint.txt"));
@@ -321,11 +287,9 @@ public class Main
 		// Print textual results
 		for (Group group : groups)
 		{
-			writer.write(group.getPrint(sa, null, true, useGraph) + "\n\n");
+			writer.write(group.getPrint(null, true, useGraph) + "\n\n");
 		}
 		writer.close();
-
-//		if (literatureKeywords != null) printAnnotations(getGenes(groups, genesMap));
 	}
 
 	public static void searchOnRandomized() throws IOException, ClassNotFoundException
@@ -367,77 +331,20 @@ public class Main
 		}
 		List<String> list = new ArrayList<>(genes);
 
-		Collections.sort(list, new Comparator<String>()
-		{
-			@Override
-			public int compare(String o1, String o2)
-			{
-				return new Integer(genesMap.get(o2).getAltCnt()).compareTo(genesMap.get(o1).getAltCnt());
-			}
-		});
+		Collections.sort(list,
+			(o1, o2) -> new Integer(genesMap.get(o2).getAltCnt()).compareTo(genesMap.get(o1).getAltCnt()));
 
 		return list;
 	}
 
-	public static void printAnnotations(List<String> genes)
-	{
-		System.out.println("Number genes in mutex groups = " + genes.size());
-		System.out.println(genes + "\n");
-
-		String[] kywd = literatureKeywords.split(",");
-		for (int i = 0; i < kywd.length; i++)
-		{
-			kywd[i] = kywd[i].trim();
-		}
-
-		List<String> withKw = new ArrayList<String>();
-		List<String> withOtherCancer = new ArrayList<String>(genes);
-		List<String> notAssoc = new ArrayList<String>();
-
-		System.out.println("Reported cancer associations in GeneCards database\n" +
-			"--------------------------------------------------\n");
-
-		for (String gene : genes)
-		{
-			System.out.print(gene + ": ");
-			Set<String> relatedCancers = GeneCards.getRelatedCancers(gene);
-			for (String cancer : relatedCancers)
-			{
-				System.out.print(cancer + ", ");
-				if (contains(cancer, kywd) && !withKw.contains(gene)) withKw.add(gene);
-			}
-			System.out.println();
-			if (relatedCancers.isEmpty()) notAssoc.add(gene);
-		}
-		withOtherCancer.removeAll(withKw);
-		withOtherCancer.removeAll(notAssoc);
-
-		System.out.println("\nClassification summary\n----------------------");
-
-		System.out.println("\nAlready associated with \"" + literatureKeywords + "\": " + withKw.size());
-		System.out.println(withKw);
-		System.out.println("\nAssociated with other types of cancer: " + withOtherCancer.size());
-		System.out.println(withOtherCancer);
-		System.out.println("\nNot associated with any cancer: " + notAssoc.size());
-		System.out.println(notAssoc);
-		System.out.println("\n\n");
-	}
-
 	private static List<String> selectWithScore(final Map<String, Double> resultScores, double thr)
 	{
-		List<String> list = new ArrayList<String>();
+		List<String> list = new ArrayList<>();
 		for (String s : resultScores.keySet())
 		{
 			if (resultScores.get(s) <= thr) list.add(s);
 		}
-		Collections.sort(list, new Comparator<String>()
-		{
-			@Override
-			public int compare(String o1, String o2)
-			{
-				return resultScores.get(o1).compareTo(resultScores.get(o2));
-			}
-		});
+		Collections.sort(list, (o1, o2) -> resultScores.get(o1).compareTo(resultScores.get(o2)));
 		return list;
 	}
 
@@ -780,33 +687,6 @@ public class Main
 		return set;
 	}
 
-	private static void downloadPortalData() throws IOException
-	{
-		System.out.println("Downloading alterations from cBioPortal for study " + portalStudyID);
-		PortalDataset dataset = PortalDatasetEnum.findByStudyID(portalStudyID);
-		if (dataset == null)
-		{
-			dataset = new PortalDataset("noname", minAltRatio, portalStudyID, portalCaseListID,
-				new String[]{portalMutProfileID, portalCNAProfileID, portalExpProfileID},
-				null, null);
-		}
-		else
-		{
-			if (portalCaseListID != null) dataset.caseList = portalCaseListID;
-			if (portalMutProfileID != null) dataset.profile[0] = portalMutProfileID;
-			if (portalCNAProfileID != null) dataset.profile[1] = portalCNAProfileID;
-			if (portalExpProfileID != null) dataset.profile[2] = portalExpProfileID;
-			if (minAltRatio != null) dataset.minAltThr = minAltRatio;
-		}
-		PortalReader reader = new PortalReader(dataset);
-		if (symbolsFile != null) reader.setGeneSymbols(readSymbolsFile());
-		reader.setUseNetwork(useGraph);
-		reader.setOutputDir(dir);
-		reader.setOutputFileName("DataMatrix.txt");
-		reader.loadDataset();
-		reader.updateParametersFile(new File(dir + "parameters.txt"));
-	}
-
 	private static boolean loadParameters() throws FileNotFoundException
 	{
 		File file = new File(dir + "parameters.txt");
@@ -864,38 +744,6 @@ public class Main
 			{
 				if (networkFilename == null) networkFilename = new HashSet<String>();
 				networkFilename.add(dir + token[1]);
-			}
-			else if (token[0].equals("dataset-for-subtype"))
-			{
-				subtypeDatasetName = token[1];
-			}
-			else if (token[0].equals("keywords"))
-			{
-				literatureKeywords = token[1];
-			}
-			else if (token[0].equals("portal-study-id"))
-			{
-				portalStudyID = token[1];
-			}
-			else if (token[0].equals("portal-caselist-id"))
-			{
-				portalCaseListID = token[1];
-			}
-			else if (token[0].equals("portal-expression-profile-id"))
-			{
-				portalExpProfileID = token[1];
-			}
-			else if (token[0].equals("portal-cna-profile-id"))
-			{
-				portalCNAProfileID = token[1];
-			}
-			else if (token[0].equals("portal-mutation-profile-id"))
-			{
-				portalMutProfileID = token[1];
-			}
-			else if (token[0].equals("minimum-alteration-ratio"))
-			{
-				minAltRatio = new Double(token[1]);
 			}
 			else if (token[0].equals("randomize-data-matrix"))
 			{

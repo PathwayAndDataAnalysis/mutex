@@ -1,8 +1,8 @@
 package org.cbio.mutex;
 
 import org.biopax.paxtools.pattern.miner.SIFEnum;
-import org.cbio.causality.util.FormatUtil;
-import org.cbio.causality.util.Overlap;
+import org.panda.utility.FormatUtil;
+import org.panda.utility.statistics.Overlap;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -25,7 +25,7 @@ public class GraphWriter
 	 * @param network network data
 	 */
 	public static void write(List<Group> groups, Map<String, GeneAlt> geneMap,
-		Network network, String dir, String graphName, SubtypeAligner sa) throws IOException
+		Network network, String dir, String graphName) throws IOException
 	{
 		// All genes in mutex groups, ignoring targets
 		Set<String> genesInGroups = new HashSet<String>();
@@ -138,17 +138,6 @@ public class GraphWriter
 		{
 			writer.write("node\t" + id + "\tcolor\t" + node2color.get(id) + "\n");
 			writer.write("node\t" + id + "\ttooltip\t" + node2tooltip.get(id) + "\n");
-
-			if (sa != null)
-			{
-				String subtype = sa.getMostEnrichedSubtype(id, 0.05);
-				if (subtype != null)
-				{
-					writer.write("node\t" + id + "\thighlight\ton\n");
-					writer.write("node\t" + id + "\thighlightcolor\t" +
-						H_COLS.get(sa.getAllSubtypes().indexOf(subtype)) + "\n");
-				}
-			}
 		}
 		for (String target : to)
 		{

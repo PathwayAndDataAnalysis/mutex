@@ -1,7 +1,7 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.util.Kronometre;
-import org.cbio.causality.util.Overlap;
+import org.panda.utility.Kronometre;
+import org.panda.utility.statistics.Overlap;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -47,14 +47,7 @@ public class PairSearcher
 				pair[0].getBooleanChanges(), pair[1].getBooleanChanges()));
 		}
 
-		Collections.sort(pairs, new Comparator<GeneAlt[]>()
-		{
-			@Override
-			public int compare(GeneAlt[] o1, GeneAlt[] o2)
-			{
-				return pvals.get(o1).compareTo(pvals.get(o2));
-			}
-		});
+		Collections.sort(pairs, (o1, o2) -> pvals.get(o1).compareTo(pvals.get(o2)));
 
 		BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
 

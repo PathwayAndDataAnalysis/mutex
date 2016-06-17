@@ -1,7 +1,7 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.util.ArrayUtil;
-import org.cbio.causality.util.Summary;
+import org.panda.utility.ArrayUtil;
+import org.panda.utility.statistics.Summary;
 
 import java.io.*;
 import java.util.Arrays;
@@ -16,7 +16,7 @@ public class HyperAlteredRemover
 {
 	public static void cleanHyper(String inFile, String outFile) throws IOException
 	{
-		Map<String, int[]> geneMap = new HashMap<String, int[]>();
+		Map<String, int[]> geneMap = new HashMap<>();
 
 		Scanner sc = new Scanner(new File(inFile));
 		String line = sc.nextLine();

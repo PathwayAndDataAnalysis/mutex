@@ -1,6 +1,9 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.util.*;
+import org.panda.utility.Progress;
+import org.panda.utility.statistics.Overlap;
+import org.panda.utility.statistics.Summary;
+import org.panda.utility.statistics.UniformityChecker;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,7 +95,9 @@ public class IndependentFisher
 		int dim = 2;
 		double[] p = inFi.generateMaxPvals(10000, dim);
 		takePower(p, dim);
-		DiscretePvalHisto h = new DiscretePvalHisto(p, 0.05);
-		h.plot();
+
+		List<Double> list = new ArrayList<>(p.length);
+		for (double v : p) list.add(v);
+		UniformityChecker.plot(list);
 	}
 }

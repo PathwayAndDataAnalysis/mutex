@@ -1,8 +1,13 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.util.*;
+import org.panda.utility.ArrayUtil;
+import org.panda.utility.Progress;
+import org.panda.utility.statistics.Overlap;
+import org.panda.utility.statistics.Summary;
+import org.panda.utility.statistics.UniformityChecker;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -73,17 +78,17 @@ public class IntersectionOfN
 		}
 	}
 
-	public double[] spitMulti(int cnt)
+	public List<Double> spitMulti(int cnt)
 	{
-		double[] p = new double[cnt];
+		List<Double> list = new ArrayList<>(cnt);
 
-		Progress prg = new Progress(p.length);
+		Progress prg = new Progress(cnt);
 		for (int i = 0; i < cnt; i++)
 		{
-			p[i] = spit2();
+			list.add(spit2());
 			prg.tick();
 		}
-		return p;
+		return list;
 	}
 
 	public double spit()
@@ -127,9 +132,8 @@ public class IntersectionOfN
 	public static void main(String[] args)
 	{
 		IntersectionOfN inFi = new IntersectionOfN(1000, 0.3, 0.2,  0.3);
-		double[] p = inFi.spitMulti(10000);
-		DiscretePvalHisto h = new DiscretePvalHisto(p, 0.05);
-		h.plot();
+		List<Double> pvals = inFi.spitMulti(10000);
+		UniformityChecker.plot(pvals);
 
 //		System.out.println();
 //		Frequency f = new Frequency();

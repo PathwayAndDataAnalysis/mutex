@@ -30,7 +30,7 @@ public enum Letter
 
 	static
 	{
-		map = new HashMap<Integer, Letter>();
+		map = new HashMap<>();
 		for (Letter let : Letter.values())
 		{
 			map.put(let.code, let);

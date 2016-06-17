@@ -1,10 +1,7 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.model.Alteration;
-import org.cbio.causality.model.AlterationPack;
-import org.cbio.causality.model.Change;
-import org.cbio.causality.util.ArrayUtil;
-import org.cbio.causality.util.Summary;
+import org.panda.utility.ArrayUtil;
+import org.panda.utility.statistics.Summary;
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -66,27 +63,6 @@ public class GeneAlt implements Cloneable, Serializable
 		{
 			alterations[i] = Integer.parseInt(data[i + 1]);
 		}
-	}
-
-	/**
-	 * Constructor for subtype cases
-	 * @param pack
-	 */
-	public GeneAlt(AlterationPack pack)
-	{
-		this.id = pack.getId();
-		this.alterations = convertAlterations(pack, null);
-
-	}
-
-	/**
-	 * Constructor for subtype cases
-	 * @param pack
-	 */
-	public GeneAlt(AlterationPack pack, boolean[] exclude)
-	{
-		this.id = pack.getId();
-		this.alterations = convertAlterations(pack, exclude);
 	}
 
 	/**
@@ -328,42 +304,5 @@ public class GeneAlt implements Cloneable, Serializable
 		}
 
 		return i / (double) randScores.size();
-	}
-
-	public static int[] convertAlterations(AlterationPack pack, boolean[] hyper)
-	{
-		int[] alts = new int[hyper == null ? pack.getSize() : ArrayUtil.countValue(hyper, false)];
-
-		int j = 0;
-		for (int i = 0; i < pack.getSize(); i++)
-		{
-			if (hyper != null && hyper[i])
-			{
-				continue;
-			}
-
-			int code;
-
-			if (pack.get(Alteration.COPY_NUMBER) == null)
-			{
-				code = pack.get(Alteration.MUTATION)[i].isAltered() ? 1 : 0;
-			}
-			else if (pack.get(Alteration.MUTATION) == null || !pack.get(Alteration.MUTATION)[i].isAltered())
-			{
-				if (pack.get(Alteration.COPY_NUMBER)[i] == Change.ACTIVATING) code = Letter.AMP.code;
-				else if (pack.get(Alteration.COPY_NUMBER)[i] == Change.INHIBITING) code = Letter.DEL.code;
-				else code = 0;
-			}
-			else
-			{
-				if (pack.get(Alteration.COPY_NUMBER)[i] == Change.ACTIVATING) code = Letter.AMP_MUT.code;
-				else if (pack.get(Alteration.COPY_NUMBER)[i] == Change.INHIBITING) code = Letter.DEL_MUT.code;
-				else code = Letter.MUT.code;
-			}
-
-			alts[j++] = code;
-		}
-		assert j == alts.length;
-		return alts;
 	}
 }

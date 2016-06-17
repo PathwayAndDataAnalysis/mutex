@@ -1,11 +1,9 @@
 package org.cbio.mutex;
 
 import org.biopax.paxtools.pattern.miner.SIFEnum;
-import org.cbio.causality.analysis.Graph;
-import org.cbio.causality.analysis.SIFLinker;
-import org.cbio.causality.network.PathwayCommons;
-import org.cbio.causality.network.SPIKE;
-import org.cbio.causality.network.SignaLink;
+import org.panda.resource.network.PathwayCommons;
+import org.panda.utility.graph.Graph;
+import org.panda.utility.graph.SIFLinker;
 
 import java.io.*;
 import java.util.*;
@@ -43,14 +41,14 @@ public class Network extends Graph
 
 		if (filename == null)
 		{
-			graphTR.merge(PathwayCommons.getGraph(SIFEnum.CONTROLS_EXPRESSION_OF));
-			graphTR.merge(SPIKE.getGraphTR());
-			graphTR.merge(SignaLink.getGraphTR());
+			graphTR.merge(PathwayCommons.get().getGraph(SIFEnum.CONTROLS_EXPRESSION_OF));
+//			graphTR.merge(SPIKE.getGraphTR());
+//			graphTR.merge(SignaLink.getGraphTR());
 		}
 		else
 		{
 			graphTR.load(new FileInputStream(filename), Collections.<String>emptySet(),
-				new HashSet<String>(Arrays.asList(SIFEnum.CONTROLS_EXPRESSION_OF.getTag())));
+				new HashSet<>(Arrays.asList(SIFEnum.CONTROLS_EXPRESSION_OF.getTag())));
 		}
 		return graphTR;
 	}
@@ -60,14 +58,14 @@ public class Network extends Graph
 		Graph graphSig = new Graph("signaling", SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag());
 		if (filename == null)
 		{
-			graphSig.merge(PathwayCommons.getGraph(SIFEnum.CONTROLS_STATE_CHANGE_OF));
-			graphSig.merge(SPIKE.getGraphPostTl());
-			graphSig.merge(SignaLink.getGraphPostTl());
+			graphSig.merge(PathwayCommons.get().getGraph(SIFEnum.CONTROLS_STATE_CHANGE_OF));
+//			graphSig.merge(SPIKE.getGraphPostTl());
+//			graphSig.merge(SignaLink.getGraphPostTl());
 		}
 		else
 		{
 			graphSig.load(new FileInputStream(filename), Collections.<String>emptySet(),
-				new HashSet<String>(Arrays.asList(SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag())));
+				new HashSet<>(Arrays.asList(SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag())));
 		}
 		return graphSig;
 	}
@@ -77,7 +75,7 @@ public class Network extends Graph
 		Graph graph = new Graph("signaling relations", "is-upstream-of");
 
 		if (filename != null) graph.load(new FileInputStream(filename), Collections.<String>emptySet(),
-			new HashSet<String>(Arrays.asList("is-upstream-of")));
+			new HashSet<>(Arrays.asList("is-upstream-of")));
 
 		return graph;
 	}
@@ -94,20 +92,13 @@ public class Network extends Graph
 		}
 		System.exit(0);
 		Network n = new Network();
-		final Map<String, Integer> degreeMap = new HashMap<String, Integer>();
+		final Map<String, Integer> degreeMap = new HashMap<>();
 		for (String sym : n.getSymbols())
 		{
 			degreeMap.put(sym, n.getUpstream(sym).size());
 		}
 		List<String> genes = new ArrayList<String>(degreeMap.keySet());
-		Collections.sort(genes, new Comparator<String>()
-		{
-			@Override
-			public int compare(String o1, String o2)
-			{
-				return degreeMap.get(o2).compareTo(degreeMap.get(o1));
-			}
-		});
+		Collections.sort(genes, (o1, o2) -> degreeMap.get(o2).compareTo(degreeMap.get(o1)));
 
 		for (int i = 0; i < 100; i++)
 		{

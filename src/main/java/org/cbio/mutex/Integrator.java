@@ -1,7 +1,6 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.analysis.Graph;
-import org.cbio.causality.data.portal.BroadAccessor;
+import org.panda.utility.graph.Graph;
 
 import java.io.*;
 import java.util.*;
@@ -93,33 +92,26 @@ public class Integrator
 
 		// print recurrent genes
 
-		List<String> recurrent = new ArrayList<String>();
+		List<String> recurrent = new ArrayList<>();
 
 		for (String gene : geneScore.keySet())
 		{
 			if (geneScore.get(gene) > 1) recurrent.add(gene);
 		}
 
-		Collections.sort(recurrent, new Comparator<String>()
-		{
-			@Override
-			public int compare(String o1, String o2)
-			{
-				return geneScore.get(o2).compareTo(geneScore.get(o1));
-			}
-		});
+		Collections.sort(recurrent, (o1, o2) -> geneScore.get(o2).compareTo(geneScore.get(o1)));
 
 		System.out.println("recurrent.size() = " + recurrent.size());
 		System.out.println("recurrent = " + recurrent);
 
-		Map<String, List<String>>[] mg = getMutSigGistic(recurrent);
-
-		System.out.println("Gene\tRecurrence\tMutsig Cnt\tGistic Cnt");
-		for (String gene : recurrent)
-		{
-			System.out.println(gene + "\t" + geneScore.get(gene) +
-				"\t" + mg[0].get(gene).size() + "\t" + mg[1].get(gene).size());
-		}
+//		Map<String, List<String>>[] mg = getMutSigGistic(recurrent);
+//
+//		System.out.println("Gene\tRecurrence\tMutsig Cnt\tGistic Cnt");
+//		for (String gene : recurrent)
+//		{
+//			System.out.println(gene + "\t" + geneScore.get(gene) +
+//				"\t" + mg[0].get(gene).size() + "\t" + mg[1].get(gene).size());
+//		}
 
 
 		printCancerAssociations(genesMap, recurrent);
@@ -132,23 +124,23 @@ public class Integrator
 		Graph graph = new Network();
 
 		final Map<String, Map<String, List<List<String>>>> targetMap =
-			new HashMap<String, Map<String, List<List<String>>>>();
+			new HashMap<>();
 
 		for (String s : groupsMap.keySet())
 		{
 			for (List<String> group : groupsMap.get(s))
 			{
-				Set<String> targets = graph.getLinkedCommonDownstream(new HashSet<String>(group));
+				Set<String> targets = graph.getLinkedCommonDownstream(new HashSet<>(group));
 
 				cropToMembersIfContains(targets, group);
 
 				for (String target : targets)
 				{
 					if (!targetMap.containsKey(target))
-						targetMap.put(target, new HashMap<String, List<List<String>>>());
+						targetMap.put(target, new HashMap<>());
 
 					if (!targetMap.get(target).containsKey(s))
-						targetMap.get(target).put(s, new ArrayList<List<String>>());
+						targetMap.get(target).put(s, new ArrayList<>());
 
 					targetMap.get(target).get(s).add(group);
 				}
@@ -157,14 +149,7 @@ public class Integrator
 
 		List<String> targets = new ArrayList<String>(targetMap.keySet());
 
-		Collections.sort(targets, new Comparator<String>()
-		{
-			@Override
-			public int compare(String o1, String o2)
-			{
-				return new Integer(targetMap.get(o2).size()).compareTo(targetMap.get(o1).size());
-			}
-		});
+		Collections.sort(targets, (o1, o2) -> new Integer(targetMap.get(o2).size()).compareTo(targetMap.get(o1).size()));
 
 		for (int i = 0; i < howMany; i++)
 		{
@@ -187,7 +172,7 @@ public class Integrator
 
 	private static void cropToMembersIfContains(Set<String> targets, List<String> group)
 	{
-		Set<String> s = new HashSet<String>(group);
+		Set<String> s = new HashSet<>(group);
 		s.retainAll(targets);
 		if (!s.isEmpty()) targets.retainAll(s);
 	}
@@ -199,14 +184,14 @@ public class Integrator
 			if (!genesMap.containsKey(s)) continue;
 
 			System.out.print(s + ": ");
-			List<String> list = new ArrayList<String>(recurrent);
+			List<String> list = new ArrayList<>(recurrent);
 			list.retainAll(genesMap.get(s));
 			System.out.println(list.toString());
 		}
 		System.out.println();
 		for (String gene : recurrent)
 		{
-			List<String> list = new ArrayList<String>();
+			List<String> list = new ArrayList<>();
 			for (String s : study)
 			{
 				if (!genesMap.containsKey(s)) continue;
@@ -264,7 +249,7 @@ public class Integrator
 	 */
 	static List<List<String>> readResults(String dir, double cutoff) throws FileNotFoundException
 	{
-		List<List<String>> groups = new ArrayList<List<String>>();
+		List<List<String>> groups = new ArrayList<>();
 
 		Scanner sc = new Scanner(new File(dir + "/ranked-groups.txt"));
 		sc.nextLine();
@@ -291,7 +276,7 @@ public class Integrator
 	{
 		BufferedWriter writer = new BufferedWriter(new FileWriter(file + ".sif"));
 
-		Set<String> wroteGenes = new HashSet<String>();
+		Set<String> wroteGenes = new HashSet<>();
 
 		for (String pair : pairScore.keySet())
 		{
@@ -303,7 +288,7 @@ public class Integrator
 			wroteGenes.add(g[1]);
 		}
 
-		Set<String> strongGenes = new HashSet<String>(wroteGenes);
+		Set<String> strongGenes = new HashSet<>(wroteGenes);
 
 		for (String gene : geneScore.keySet())
 		{
@@ -316,7 +301,7 @@ public class Integrator
 			}
 		}
 
-		Set<String> extras = new HashSet<String>();
+		Set<String> extras = new HashSet<>();
 		for (String g1 : wroteGenes)
 		{
 			for (String g2 : wroteGenes)
@@ -408,24 +393,29 @@ public class Integrator
 		return col + " " + col + " " + col;
 	}
 
+	/**
+	 * @deprecated
+	 * @param genes
+	 * @return
+	 */
 	private static Map<String, List<String>>[] getMutSigGistic(List<String> genes)
 	{
-		Map<String, List<String>> mutsigCnt = new HashMap<String,List<String>>();
-		Map<String, List<String>> gisticCnt = new HashMap<String, List<String>>();
+		Map<String, List<String>> mutsigCnt = new HashMap<>();
+		Map<String, List<String>> gisticCnt = new HashMap<>();
 
-		Map<String, Set<String>> mutsig = new HashMap<String, Set<String>>();
-		Map<String, Set<String>> gistic = new HashMap<String, Set<String>>();
+		Map<String, Set<String>> mutsig = new HashMap<>();
+		Map<String, Set<String>> gistic = new HashMap<>();
 
-		Set<String> allGistic = new HashSet<String>();
-		Set<String> allMutsig = new HashSet<String>();
+		Set<String> allGistic = new HashSet<>();
+		Set<String> allMutsig = new HashSet<>();
 
 		for (String c : study)
 		{
 			if (c.contains("-")) c = c.substring(0, c.indexOf("-"));
 			if (mutsig.containsKey(c)) continue;
 
-			mutsig.put(c, BroadAccessor.getMutsigGenes(c, 0.05, true));
-			gistic.put(c, BroadAccessor.getGisticGenes(c, 0.05));
+//			mutsig.put(c, BroadAccessor.getMutsigGenes(c, 0.05, true));
+//			gistic.put(c, BroadAccessor.getGisticGenes(c, 0.05));
 
 			allMutsig.addAll(mutsig.get(c));
 			allGistic.addAll(gistic.get(c));
@@ -433,8 +423,8 @@ public class Integrator
 
 		for (String gene : genes)
 		{
-			mutsigCnt.put(gene, new ArrayList<String>());
-			gisticCnt.put(gene, new ArrayList<String>());
+			mutsigCnt.put(gene, new ArrayList<>());
+			gisticCnt.put(gene, new ArrayList<>());
 			for (String c : mutsig.keySet())
 			{
 				if (mutsig.get(c).contains(gene)) mutsigCnt.get(gene).add(c);

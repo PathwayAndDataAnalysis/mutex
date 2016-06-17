@@ -1,9 +1,9 @@
 package org.cbio.mutex;
 
-import org.cbio.causality.analysis.Graph;
-import org.cbio.causality.util.ArrayUtil;
-import org.cbio.causality.util.FormatUtil;
-import org.cbio.causality.util.Overlap;
+import org.panda.utility.ArrayUtil;
+import org.panda.utility.FormatUtil;
+import org.panda.utility.graph.Graph;
+import org.panda.utility.statistics.Overlap;
 
 import java.io.*;
 import java.util.*;
@@ -444,38 +444,33 @@ public class Group implements Serializable
 			if (cna[i] == null) cna[i] = new boolean[mut[i].length];
 		}
 
-		Collections.sort(order, new Comparator<Integer>()
-		{
-			@Override
-			public int compare(Integer o1, Integer o2)
+		Collections.sort(order, (o1, o2) -> {
+			boolean[] m1 = marks[o1];
+			boolean[] m2 = marks[o2];
+
+			int c = 0;
+			for (int i = 0; i < members.size(); i++)
 			{
-				boolean[] m1 = marks[o1];
-				boolean[] m2 = marks[o2];
-
-				int c = 0;
-				for (int i = 0; i < members.size(); i++)
-				{
-					if (m1[i] && !m2[i]) c = -1;
-					if (!m1[i] && m2[i]) c = 1;
-					if (c != 0) break;
-				}
-
-				if (c != 0)
-				{
-					if (getNumberOfInitialPositiveAltOverlap(m1, m2) % 2 == 1) return -c;
-					else return c;
-				}
-
-				for (int i = 0; i < members.size(); i++)
-				{
-					if (mut[i][o1] && !mut[i][o2]) return -1;
-					if (!mut[i][o1] && mut[i][o2]) return 1;
-					if (cna[i][o1] && !cna[i][o2]) return 1;
-					if (!cna[i][o1] && cna[i][o2]) return -1;
-				}
-
-				return 0;
+				if (m1[i] && !m2[i]) c = -1;
+				if (!m1[i] && m2[i]) c = 1;
+				if (c != 0) break;
 			}
+
+			if (c != 0)
+			{
+				if (getNumberOfInitialPositiveAltOverlap(m1, m2) % 2 == 1) return -c;
+				else return c;
+			}
+
+			for (int i = 0; i < members.size(); i++)
+			{
+				if (mut[i][o1] && !mut[i][o2]) return -1;
+				if (!mut[i][o1] && mut[i][o2]) return 1;
+				if (cna[i][o1] && !cna[i][o2]) return 1;
+				if (!cna[i][o1] && cna[i][o2]) return -1;
+			}
+
+			return 0;
 		});
 
 		return order;
@@ -511,16 +506,16 @@ public class Group implements Serializable
 	 */
 	public String getPrint()
 	{
-		return getPrint(null, false);
+		return getPrint(false);
 	}
 
 	/**
 	 * Gets the oncoprint of the members in a String.
 	 * @return oncoprint
 	 */
-	public String getPrint(SubtypeAligner sa, boolean withTargets)
+	public String getPrint(boolean withTargets)
 	{
-		return getPrint(sa, null, true, withTargets);
+		return getPrint(null, true, withTargets);
 	}
 
 	/**
@@ -528,7 +523,7 @@ public class Group implements Serializable
 	 * @param withMHT with multiple hypothesis testing
 	 * @return oncoprint
 	 */
-	public String getPrint(SubtypeAligner sa, Map<String, String> nameConvMap, boolean withMHT,
+	public String getPrint(Map<String, String> nameConvMap, boolean withMHT,
 		boolean withTargets)
 	{
 		List<Integer> order = getPrintOrdering();
@@ -557,11 +552,6 @@ public class Group implements Serializable
 				append(FormatUtil.roundToSignificantDigits(p.get(gene.getId()), 2));
 			if (withMHT) s.append("\tp2: ").
 				append(FormatUtil.roundToSignificantDigits(p2.get(gene.getId()), 2));
-			if (sa != null)
-			{
-				List<String> subs = sa.getEnrichedSubtypes(gene.getId(), 0.05);
-				if (subs != null) s.append("\t").append(subs);
-			}
 		}
 		return s.toString();
 	}
@@ -601,7 +591,7 @@ public class Group implements Serializable
 	 */
 	public static void removeSubsets(Collection<Group> groups)
 	{
-		for (Group group : new HashSet<Group>(groups))
+		for (Group group : new HashSet<>(groups))
 		{
 			group.initSeeds();
 			for (Group other : groups)
@@ -624,14 +614,7 @@ public class Group implements Serializable
 	 */
 	public static void sortToCoverage(List<Group> groups)
 	{
-		Collections.sort(groups, new Comparator<Group>()
-		{
-			@Override
-			public int compare(Group b1, Group b2)
-			{
-				return new Double(b2.calcCoverage()).compareTo(b1.calcCoverage());
-			}
-		});
+		Collections.sort(groups, (b1, b2) -> new Double(b2.calcCoverage()).compareTo(b1.calcCoverage()));
 	}
 
 	public static void serialize(List<Group> groups, String filename) throws IOException
@@ -651,7 +634,7 @@ public class Group implements Serializable
 
 	public static Set<String> collectGenes(Collection<Group> groups)
 	{
-		Set<String> genes = new HashSet<String>();
+		Set<String> genes = new HashSet<>();
 		for (Group group : groups)
 		{
 			genes.addAll(group.getGeneNames());
@@ -675,7 +658,7 @@ public class Group implements Serializable
 	private List<String> sortTargetsToFit(Collection<String> mutex,
 		Collection<String> comTar, Map<String, GeneAlt> genesMap)
 	{
-		final Map<String, Double> fit = new HashMap<String, Double>();
+		final Map<String, Double> fit = new HashMap<>();
 
 		for (String tar : comTar)
 		{
@@ -687,16 +670,9 @@ public class Group implements Serializable
 			}
 		}
 
-		List<String> sorted = new ArrayList<String>(comTar);
+		List<String> sorted = new ArrayList<>(comTar);
 
-		Collections.sort(sorted, new Comparator<String>()
-		{
-			@Override
-			public int compare(String o1, String o2)
-			{
-			return fit.get(o1).compareTo(fit.get(o2));
-			}
-		});
+		Collections.sort(sorted, (o1, o2) -> fit.get(o1).compareTo(fit.get(o2)));
 
 		return sorted;
 	}
@@ -717,7 +693,7 @@ public class Group implements Serializable
 	{
 		if (this.seedGenes == null)
 		{
-			seedGenes = new HashSet<GeneAlt>();
+			seedGenes = new HashSet<>();
 			seedGenes.add(this.members.get(0));
 		}
 	}
