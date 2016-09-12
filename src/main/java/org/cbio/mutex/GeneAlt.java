@@ -61,7 +61,13 @@ public class GeneAlt implements Cloneable, Serializable
 		this.alterations = new int[data.length - 1];
 		for (int i = 0; i < alterations.length; i++)
 		{
-			alterations[i] = Integer.parseInt(data[i + 1]);
+			try
+			{
+				alterations[i] = Integer.parseInt(data[i + 1]);
+			} catch (NumberFormatException e){
+				System.out.println("Matrix value is not integer. Gene = " + id + ", column = " + i);
+				throw e;
+			}
 		}
 	}
 

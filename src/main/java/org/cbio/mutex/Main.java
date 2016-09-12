@@ -109,6 +109,7 @@ public class Main
 
 		if (!loadParameters()) System.exit(1);
 
+		network = null;
 		if (useGraph)
 		{
 			for (String name : networkFilename)
@@ -188,8 +189,7 @@ public class Main
 		System.out.println("Directory = " + dir);
 
 		// load the alteration data
-		Map<String, GeneAlt> genesMap = readCache("data-cache");
-		if (genesMap == null) genesMap = loadAlterations();
+		Map<String, GeneAlt> genesMap = loadAlterations();
 
 		// if the data needs to be downloaded from cBioPortal, do it
 		if (genesMap == null)
@@ -216,9 +216,7 @@ public class Main
 		Set<String> symbols = genesMap.keySet();
 		if (network != null) symbols.retainAll(network.getSymbols());
 
-		Map<String, Group> groupsOfSeeds = searcher.getGroupsOfSeeds(symbols, maxGroupSize,
-			randIter1);
-		cacheData(genesMap, "data-cache");
+		Map<String, Group> groupsOfSeeds = searcher.getGroupsOfSeeds(symbols, maxGroupSize, randIter1);
 
 		writeRankedGroups(groupsOfSeeds, null, "ranked-groups.txt");
 
@@ -375,6 +373,9 @@ public class Main
 			"network-file: To customize the signaling network, users can use this parameter. The tab-delimited network file should contain 3 columns (Gene Symbol 1, interaction-type, Gene Symbol 2).");
 	}
 
+	/**
+	 * @deprecated
+	 */
 	private static void cacheData(Map<String, GeneAlt> geneMap, String filename) throws IOException
 	{
 		ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(dir + filename));
@@ -430,7 +431,7 @@ public class Main
 			{
 				Collections.reverse(ranking);
 
-				for (String gene : new HashSet<String>(map.keySet()))
+				for (String gene : new HashSet<>(map.keySet()))
 				{
 					if (!ranking.contains(gene)) map.remove(gene);
 				}
@@ -443,20 +444,13 @@ public class Main
 			}
 			else
 			{
-				List<String> names = new ArrayList<String>(map.keySet());
-				final Map<String, Integer> cnt = new HashMap<String, Integer>();
+				List<String> names = new ArrayList<>(map.keySet());
+				final Map<String, Integer> cnt = new HashMap<>();
 				for (String name : map.keySet())
 				{
 					cnt.put(name, map.get(name).countAltered());
 				}
-				Collections.sort(names, new Comparator<String>()
-				{
-					@Override
-					public int compare(String o1, String o2)
-					{
-						return cnt.get(o2).compareTo(cnt.get(o1));
-					}
-				});
+				Collections.sort(names, (o1, o2) -> cnt.get(o2).compareTo(cnt.get(o1)));
 				int thr = cnt.get(names.get(geneLimit + 1));
 				System.out.println("Alteration cnt threshold > " + thr);
 				for (String name : cnt.keySet())
@@ -531,14 +525,7 @@ public class Main
 		}
 
 		List<String> sorted = new ArrayList<String>(groupMap.keySet());
-		Collections.sort(sorted, new Comparator<String>()
-		{
-			@Override
-			public int compare(String o1, String o2)
-			{
-				return scoreMap.get(o1).compareTo(scoreMap.get(o2));
-			}
-		});
+		Collections.sort(sorted, (o1, o2) -> scoreMap.get(o1).compareTo(scoreMap.get(o2)));
 
 		BufferedWriter writer = new BufferedWriter(new FileWriter(dir + filename));
 

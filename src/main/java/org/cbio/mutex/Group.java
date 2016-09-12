@@ -285,6 +285,7 @@ public class Group implements Serializable
 			}
 		}
 
+		black.add(gene);
 		// does not increase coverage
 		return false;
 	}

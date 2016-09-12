@@ -339,10 +339,6 @@ public class MutexGreedySearcher implements Serializable
 			{
 				candidates.add(candGene);
 			}
-			else
-			{
-				group.black.add(candGene);
-			}
 		}
 
 		return candidates;
