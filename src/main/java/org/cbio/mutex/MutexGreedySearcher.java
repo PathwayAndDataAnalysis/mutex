@@ -23,6 +23,17 @@ public class MutexGreedySearcher implements Serializable
 	private Graph graph;
 
 	/**
+	 * Random number generator for shuffling operations.
+	 */
+	Random rand;
+
+	/**
+	 * A mapping from sample types to sample indices. Needed only if the dataset is heterogeneous, i.e. random
+	 * alterations have unequal likelihood of distribution between types, independent from sample alteration rates.
+	 */
+	Map<String, int[]> typeToInds;
+
+	/**
 	 * A null distribution is sampled until the number of values smaller than the current compared
 	 * value is equal to this number, or up to iteration limit.
 	 */
@@ -38,11 +49,19 @@ public class MutexGreedySearcher implements Serializable
 	{
 		this.genes = geneAlts;
 		this.graph = graph;
+		this.rand = new Random();
+	}
+
+	public void setTypeToInds(Map<String, int[]> typeToInds)
+	{
+		this.typeToInds = typeToInds;
 	}
 
 	public Map<String, Group> getGroupsOfSeeds(Collection<String> seeds, int maxGroupSize,
 		int randIter)
 	{
+		if (typeToInds != null) genes.values().forEach(g -> g.setTypeMap(typeToInds));
+
 		Progress prg = new Progress(seeds.size(),
 			"Searching for groups of " + seeds.size() + " seeds");
 
@@ -179,7 +198,7 @@ public class MutexGreedySearcher implements Serializable
 		while ((cnt < LOW_ACCURACY || (cnt < HIGH_ACCURACY && p < ACCURACY_SWITCH)) &&
 			 startWith.size() < randomIteration)
 		{
-			gene.shuffle();
+			gene.shuffle(rand);
 			double val = calcGeneVal(gene, maxGroupSize, randomIteration);
 			startWith.add(val);
 			if (val <= forValue)

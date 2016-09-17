@@ -4,10 +4,7 @@ import org.panda.utility.ArrayUtil;
 import org.panda.utility.statistics.Summary;
 
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 
 /**
  * A gene alteration data.
@@ -34,6 +31,16 @@ public class GeneAlt implements Cloneable, Serializable
 	 * Changes array as booleans.
 	 */
 	boolean[] ch;
+
+	/**
+	 * If present, mapping of types to the indices in the alteration array.
+	 */
+	private Map<String, int[]> typeMap;
+
+	/**
+	 * If present, subsets of the alteration array divided to types.
+	 */
+	private Map<String, boolean[]> typeAlts;
 
 	/**
 	 * Count of altered samples.
@@ -189,6 +196,14 @@ public class GeneAlt implements Cloneable, Serializable
 	}
 
 	/**
+	 * Sets the tissue to sample association map, if ever exists.
+	 */
+	public void setTypeMap(Map<String, int[]> map)
+	{
+		this.typeMap = map;
+	}
+
+	/**
 	 * Gets the ratio of altered samples.
 	 * @return alteration ratio
 	 */
@@ -227,17 +242,42 @@ public class GeneAlt implements Cloneable, Serializable
 		return buf.toString();
 	}
 
-	public void shuffle()
+	public void shuffle(Random r)
 	{
-		Boolean[] bool = new Boolean[getBooleanChanges().length];
-		for (int i = 0; i < bool.length; i++)
+		if (typeMap == null)
 		{
-			bool[i] = ch[i];
+			boolean[] ch = getBooleanChanges();
+			ArrayUtil.shuffle(ch, r);
 		}
-		Collections.shuffle(Arrays.asList(bool));
-		for (int i = 0; i < bool.length; i++)
+		else
 		{
-			ch[i] = bool[i];
+			if (typeAlts == null)
+			{
+				boolean[] ch = getBooleanChanges();
+				typeAlts = new HashMap<>();
+				typeMap.keySet().forEach(t ->
+				{
+					int[] ind = typeMap.get(t);
+					boolean[] b = new boolean[ind.length];
+					for (int i = 0; i < ind.length; i++)
+					{
+						b[i] = ch[ind[i]];
+					}
+
+					if (!ArrayUtil.isUniform(b)) typeAlts.put(t, b);
+				});
+			}
+
+			typeAlts.keySet().forEach(t ->
+			{
+				boolean[] val = typeAlts.get(t);
+				ArrayUtil.shuffle(val, r);
+				int[] ind = typeMap.get(t);
+				for (int i = 0; i < val.length; i++)
+				{
+					ch[ind[i]] = val[i];
+				}
+			});
 		}
 	}
 
@@ -262,12 +302,14 @@ public class GeneAlt implements Cloneable, Serializable
 	public void unshuffle()
 	{
 		ch = null;
+		typeAlts = null;
 	}
 
 	public void unshuffleSticky()
 	{
 		shuf = null;
 		ch = null;
+		typeAlts = null;
 		randScores = randScoresSave;
 		randScoresSave = null;
 	}
@@ -278,7 +320,7 @@ public class GeneAlt implements Cloneable, Serializable
 			"be called while a previous call exists. Please call unshuffleSticky before calling" +
 			"this method second time.");
 
-		shuffle();
+		shuffle(new Random());
 		shuf = new boolean[ch.length];
 		System.arraycopy(ch, 0, shuf, 0, ch.length);
 		randScoresSave = randScores;

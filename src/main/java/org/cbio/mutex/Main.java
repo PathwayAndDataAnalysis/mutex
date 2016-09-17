@@ -1,10 +1,15 @@
 package org.cbio.mutex;
 
+import com.sun.org.apache.xpath.internal.SourceTree;
+import org.panda.utility.ArrayUtil;
 import org.panda.utility.Kronometre;
 import org.panda.utility.statistics.FDR;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * This is the main executor class of the mutex search.
@@ -83,6 +88,11 @@ public class Main
 	 * A file to provide ordering of genes, higher priority first.
 	 */
 	private static String geneRankingFile;
+
+	/**
+	 * A file to provide mapping between tissue types that exist in the dataset to the sample names.
+	 */
+	private static String sampleToTissueMappingFile;
 
 	/**
 	 * Tells even if there is need of random runs to estimate FDR, don't do it and just write result
@@ -212,6 +222,7 @@ public class Main
 		System.out.println("Number of samples = " + genesMap.values().iterator().next().size());
 
 		MutexGreedySearcher searcher = new MutexGreedySearcher(genesMap, network);
+		searcher.setTypeToInds(readTissueToSampleMapping());
 
 		Set<String> symbols = genesMap.keySet();
 		if (network != null) symbols.retainAll(network.getSymbols());
@@ -513,6 +524,29 @@ public class Main
 		return symbols;
 	}
 
+	private static Map<String, int[]> readTissueToSampleMapping() throws IOException
+	{
+		if (sampleToTissueMappingFile != null)
+		{
+			String[] header = Files.lines(Paths.get(dataFileName)).findFirst().get().split("\t");
+
+			Map<String, String> sampleToType = Files.lines(Paths.get(sampleToTissueMappingFile)).skip(1)
+				.map(l -> l.split("\t")).collect(Collectors.toMap(t -> t[0], t -> t[1], (s, s2) -> s));
+
+			Map<String, List<Integer>> map = new HashMap<>();
+			for (int i = 1; i < header.length; i++)
+			{
+				String type = sampleToType.get(header[i]);
+				if (!map.containsKey(type)) map.put(type, new ArrayList<>());
+				map.get(type).add(i - 1);
+			}
+
+			return map.keySet().stream()
+				.collect(Collectors.toMap(t -> t, t -> ArrayUtil.convertToBasicIntArray(map.get(t))));
+		}
+		return null;
+	}
+
 	/**
 	 * Writes ordered mutex groups in a file.
 	 */
@@ -747,6 +781,10 @@ public class Main
 			else if (token[0].equals("gene-ranking-file"))
 			{
 				geneRankingFile = dir + token[1];
+			}
+			else if (token[0].equals("sample-to-tissue-mapping-file"))
+			{
+				sampleToTissueMappingFile = dir + token[1];
 			}
 		}
 		return true;
