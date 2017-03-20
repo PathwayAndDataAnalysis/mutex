@@ -1,11 +1,10 @@
-# mutex
-Automatically exported from code.google.com/p/mutex
+# Mutex
 
 Download sources
 --
 To pull the source code from repository:
 ```
-git clone https://github.com/ozgunbabur/mutex
+git clone https://github.com/PathwayAndDataAbalysis/mutex
 ```
 You can customize Mutex by editing sources with your favorite Java IDE, such as IntelliJ IDEA or Eclipse. If you don't want to use an IDE, follow the steps below.
 
@@ -24,9 +23,11 @@ mvn assembly:single
 ```
 This will create mutex.jar under the target folder in the project directory.
 
+<!--
 Add PC.sif
 --
 For some reason tt looks like Google is limiting access to large files in googlecode repositories. Please download this file from http://cbio.mskcc.org/~ozgun/PC.sif.gz, and extract the file PC.sif into the working directory (same folder of `mutex.jar`). This file will be replaced with a directory named PC once the code is run.
+-->
 
 Run Mutex
 --
@@ -59,9 +60,9 @@ The other possible parameters (below) are optional.
 
 `first-level-random-iteration`: Number of randomization to estimate null distribution of member p-values in mutex groups. Integer. Default is `10000`.
 
-`second-level-random-iteration`: Number of runs to estimate the null distribution of final scores. Integer. Default is `100`. If FDR control on results is not required and only the ranking of the result groups is sufficient, set this parameter to `0`.
+`second-level-random-iteration`: Number of runs to estimate the null distribution of final scores. Integer. Default is `0`, meaning that estimation is not required.
 
-`fdr-cutoff`: Users can select a specific FDR cutoff. When not provided, or when set to a negative value, the FDR cutoff that maximizes the expected value of true positives - false positives is used.
+`fdr-cutoff`: Users can select a specific FDR cutoff. Only applicable when there is an estimation of null distribution of scores, i.e., when `second-level-random-teration` is greater than `0`. When not provided, or when set to a negative value, the FDR cutoff that maximizes the expected value of true positives - false positives is used.
 
 `search-on-signaling-network`: Whether to reduce the search space using the signaling network. true or false. Default is true. If this is set to true, but no network file is provided using the "network-file" argument, then a default signaling network that is composed from Pathway Commons, SPIKE and SignaLink databases is used.
 
