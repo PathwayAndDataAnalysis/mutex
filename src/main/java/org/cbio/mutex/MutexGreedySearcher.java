@@ -1,6 +1,7 @@
 package org.cbio.mutex;
 
 import org.panda.utility.Progress;
+import org.panda.utility.graph.DirectedGraph;
 import org.panda.utility.graph.Graph;
 
 import java.io.*;
@@ -20,7 +21,7 @@ public class MutexGreedySearcher implements Serializable
 	/**
 	 * Network provider.
 	 */
-	private Graph graph;
+	private DirectedGraph graph;
 
 	/**
 	 * Random number generator for shuffling operations.
@@ -45,7 +46,7 @@ public class MutexGreedySearcher implements Serializable
 	 * Constructor with network and alterations.
 	 * @param graph the network helper
 	 */
-	public MutexGreedySearcher(Map<String, GeneAlt> geneAlts, Graph graph)
+	public MutexGreedySearcher(Map<String, GeneAlt> geneAlts, DirectedGraph graph)
 	{
 		this.genes = geneAlts;
 		this.graph = graph;

@@ -1,5 +1,6 @@
 package org.cbio.mutex;
 
+import org.panda.utility.graph.DirectedGraph;
 import org.panda.utility.graph.Graph;
 
 import java.io.*;
@@ -121,7 +122,7 @@ public class Integrator
 	private static void printTargets(Map<String, List<List<String>>> groupsMap, int howMany)
 		throws FileNotFoundException
 	{
-		Graph graph = new Network();
+		DirectedGraph graph = new Network();
 
 		final Map<String, Map<String, List<List<String>>>> targetMap =
 			new HashMap<>();

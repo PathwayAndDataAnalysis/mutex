@@ -2,6 +2,7 @@ package org.cbio.mutex;
 
 import org.panda.utility.ArrayUtil;
 import org.panda.utility.FormatUtil;
+import org.panda.utility.graph.DirectedGraph;
 import org.panda.utility.graph.Graph;
 import org.panda.utility.statistics.Overlap;
 
@@ -643,7 +644,7 @@ public class Group implements Serializable
 		return genes;
 	}
 
-	public void fetchTragets(Graph traverse, Map<String, GeneAlt> genesMap)
+	public void fetchTragets(DirectedGraph traverse, Map<String, GeneAlt> genesMap)
 	{
 		Set<String> tars = traverse.getLinkedCommonDownstream(new HashSet<String>(getGeneNames()));
 

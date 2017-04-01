@@ -494,7 +494,11 @@ public class Main
 	private static List<String> readGeneRanking() throws FileNotFoundException
 	{
 		if (geneRankingFile == null) return null;
-		if (!new File(geneRankingFile).exists()) return null;
+
+		if (!new File(geneRankingFile).exists())
+		{
+			throw new IllegalArgumentException("File does not exists: " + geneRankingFile);
+		}
 
 		List<String> list = new ArrayList<String>();
 		Scanner sc = new Scanner(new File(geneRankingFile));

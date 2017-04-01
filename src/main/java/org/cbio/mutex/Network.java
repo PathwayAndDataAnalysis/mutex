@@ -2,6 +2,7 @@ package org.cbio.mutex;
 
 import org.biopax.paxtools.pattern.miner.SIFEnum;
 import org.panda.resource.network.PathwayCommons;
+import org.panda.utility.graph.DirectedGraph;
 import org.panda.utility.graph.Graph;
 import org.panda.utility.graph.SIFLinker;
 
@@ -11,7 +12,7 @@ import java.util.*;
 /**
  * @author Ozgun Babur
  */
-public class Network extends Graph
+public class Network extends DirectedGraph
 {
 	SIFLinker linker;
 
@@ -35,9 +36,9 @@ public class Network extends Graph
 		merge(linker.graph);
 	}
 
-	private static Graph loadTRGraph(String filename) throws FileNotFoundException
+	private static DirectedGraph loadTRGraph(String filename) throws FileNotFoundException
 	{
-		Graph graphTR = new Graph("transcriptional regulation", SIFEnum.CONTROLS_EXPRESSION_OF.getTag());
+		DirectedGraph graphTR = new DirectedGraph("transcriptional regulation", SIFEnum.CONTROLS_EXPRESSION_OF.getTag());
 
 		if (filename == null)
 		{
@@ -47,15 +48,14 @@ public class Network extends Graph
 		}
 		else
 		{
-			graphTR.load(new FileInputStream(filename), Collections.<String>emptySet(),
-				new HashSet<>(Arrays.asList(SIFEnum.CONTROLS_EXPRESSION_OF.getTag())));
+			graphTR.load(new FileInputStream(filename), Collections.singleton(SIFEnum.CONTROLS_EXPRESSION_OF.getTag()));
 		}
 		return graphTR;
 	}
 
-	private static Graph loadPTRGraph(String filename) throws FileNotFoundException
+	private static DirectedGraph loadPTRGraph(String filename) throws FileNotFoundException
 	{
-		Graph graphSig = new Graph("signaling", SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag());
+		DirectedGraph graphSig = new DirectedGraph("signaling", SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag());
 		if (filename == null)
 		{
 			graphSig.merge(PathwayCommons.get().getGraph(SIFEnum.CONTROLS_STATE_CHANGE_OF));
@@ -64,18 +64,16 @@ public class Network extends Graph
 		}
 		else
 		{
-			graphSig.load(new FileInputStream(filename), Collections.<String>emptySet(),
-				new HashSet<>(Arrays.asList(SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag())));
+			graphSig.load(new FileInputStream(filename), Collections.singleton(SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag()));
 		}
 		return graphSig;
 	}
 
-	private static Graph loadIsUpstreamOfGraph(String filename) throws FileNotFoundException
+	private static DirectedGraph loadIsUpstreamOfGraph(String filename) throws FileNotFoundException
 	{
-		Graph graph = new Graph("signaling relations", "is-upstream-of");
+		DirectedGraph graph = new DirectedGraph("signaling relations", "is-upstream-of");
 
-		if (filename != null) graph.load(new FileInputStream(filename), Collections.<String>emptySet(),
-			new HashSet<>(Arrays.asList("is-upstream-of")));
+		if (filename != null) graph.load(new FileInputStream(filename), Collections.singleton("is-upstream-of"));
 
 		return graph;
 	}

@@ -28,18 +28,18 @@ public class GraphWriter
 		Network network, String dir, String graphName) throws IOException
 	{
 		// All genes in mutex groups, ignoring targets
-		Set<String> genesInGroups = new HashSet<String>();
+		Set<String> genesInGroups = new HashSet<>();
 
 		Set<String> to = getTargetOnly(groups);
 		OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(dir + "merged-network.sif"));
 
-		Map<String, String> node2color = new HashMap<String, String>();
-		Map<String, String> node2tooltip = new HashMap<String, String>();
+		Map<String, String> node2color = new HashMap<>();
+		Map<String, String> node2tooltip = new HashMap<>();
 
 		String s = "type:graph\ttext:" + graphName;
-//		Set<String> nodes = new HashSet<String>();
+//		Set<String> nodes = new HashSet<>();
 
-		Map<String, Set<String>> name2id = new HashMap<String, Set<String>>();
+		Map<String, Set<String>> name2id = new HashMap<>();
 
 		for (Group group : groups)
 		{
@@ -67,7 +67,7 @@ public class GraphWriter
 
 			List<String> memNames = group.getGeneNames();
 			genesInGroups.addAll(memNames);
-			List<String> tarNames = new ArrayList<String>();
+			List<String> tarNames = new ArrayList<>();
 
 			// write target nodes
 			for (String tarName : group.getTargets())
@@ -93,7 +93,7 @@ public class GraphWriter
 			}
 
 			// write relations
-			Set<String> genes = new HashSet<String>(memNames);
+			Set<String> genes = new HashSet<>(memNames);
 			genes.addAll(tarNames);
 
 			List<String> relations = network.linker.linkProgressive(genes, genes, 0);
@@ -203,7 +203,7 @@ public class GraphWriter
 		}
 
 		if (!name2id.containsKey(gene.getId()))
-			name2id.put(gene.getId(), new HashSet<String>());
+			name2id.put(gene.getId(), new HashSet<>());
 
 		name2id.get(gene.getId()).add(nodeID);
 		return s;
@@ -221,8 +221,8 @@ public class GraphWriter
 
 	private static Set<String> getTargetOnly(List<Group> groups)
 	{
-		Set<String> only = new HashSet<String>();
-		Set<String> mems = new HashSet<String>();
+		Set<String> only = new HashSet<>();
+		Set<String> mems = new HashSet<>();
 		for (Group group : groups)
 		{
 			for (GeneAlt member : group.members)
