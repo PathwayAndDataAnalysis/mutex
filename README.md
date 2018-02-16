@@ -90,3 +90,9 @@ After a run, the result files are generated into the provided data directory.
 `result-groups.cus`: Provides a graph that shows result groups, their relations between, and one of their common targets, if a common target is not already in the result group. To visualize this file open [ChiBE](https://github.com/PathwayCommons/chibe), do "SIF -> Load SIF File", change the file filter from `sif` to `cus` in the dialog, and select this file.
 
 `merged-network.sif`: Provides the minimal network that is produced using the result groups. Group boundaries are not displayed in this graph. Non-member common targets are displayed in a pale color. To visualize this file open [ChiBE](https://github.com/PathwayCommons/chibe), do "SIF -> Load SIF File", and select this file. Note that ChiBE also uses the file `merged-network.format`, so if you move the sif file, do not forget to move the format file along with it.
+
+Citing Mutex
+--
+Please refer to below paper.
+
+Babur, Özgün, et al. "[Systematic identification of cancer driving signaling pathways based on mutual exclusivity of genomic alterations](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-015-0612-6)." *Genome biology* 16.1 (2015): 45.
