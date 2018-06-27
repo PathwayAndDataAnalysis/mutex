@@ -184,6 +184,7 @@ public class Main
 
 		MutexGreedySearcher searcher = new MutexGreedySearcher(genesMap, network);
 		Set<String> symbols = genesMap.keySet();
+		if (network != null) symbols.retainAll(network.getSymbols());
 		Set<String> noShuffle = loadHighlySignificantGenes();
 		generateRandomPvals(searcher, symbols, noShuffle, null, howMany);
 	}
