@@ -2,7 +2,7 @@
 
 Prerequisites
 --
-To get a copy of the project and build it, first make sure you have [git](https://git-scm.com/downloads), [maven](https://maven.apache.org/download.cgi) and [JDK8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) in your system.
+To get a copy of the project and build it, first make sure you have [Git](https://git-scm.com/downloads), [Maven](https://maven.apache.org/download.cgi) and [JDK8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) in your system.
 
 Download sources
 --
