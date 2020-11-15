@@ -1,6 +1,5 @@
 package org.cbio.mutex;
 
-import com.sun.org.apache.xpath.internal.SourceTree;
 import org.panda.utility.ArrayUtil;
 import org.panda.utility.Kronometre;
 import org.panda.utility.statistics.FDR;
