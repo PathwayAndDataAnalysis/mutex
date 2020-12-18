@@ -8,7 +8,7 @@ Download sources
 --
 To pull the source code from repository:
 ```
-git clone https://github.com/PathwayAndDataAbalysis/mutex
+git clone https://github.com/PathwayAndDataAnalysis/mutex
 ```
 You can customize Mutex by editing sources with your favorite Java IDE, such as IntelliJ IDEA or Eclipse. If you don't want to use an IDE, follow the steps below.
 
