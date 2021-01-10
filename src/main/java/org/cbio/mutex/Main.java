@@ -20,22 +20,22 @@ public class Main
 	/**
 	 * False discovery rate threshold.
 	 */
-	public static double fdrThr = -1;
+	public static double fdrThr;
 
 	/**
 	 * Score threshold is used as an alternative to FDR threshold.
 	 */
-	public static double scoreThr = -1;
+	public static double scoreThr;
 
 	/**
 	 * Maximum group size to use during the searches.
 	 */
-	public static int maxGroupSize = 5;
+	public static int maxGroupSize;
 
 	/**
 	 * Maximum number of iterations for estimating the null distribution of initial p-values.
 	 */
-	public static int randIter1 = 10000;
+	public static int randIter1;
 
 	/**
 	 * Number of iterations to estimate the null distribution of final group scores.
@@ -50,7 +50,7 @@ public class Main
 	/**
 	 * Whether to reduce the search space using signaling networks.
 	 */
-	private static boolean useGraph = true;
+	private static boolean useGraph;
 
 	/**
 	 * The name of the tab-delimited file containing gene alterations.
@@ -102,7 +102,7 @@ public class Main
 	/**
 	 * Parameter to run the analysis on a randomized set of alterations.
 	 */
-	private static boolean randomizeDataMatrix = false;
+	private static boolean randomizeDataMatrix;
 
 	public static void main(String[] args) throws IOException, ClassNotFoundException
 	{
@@ -113,6 +113,9 @@ public class Main
 			displayHelp();
 			return;
 		}
+
+		reset();
+
 		dir = args[0];
 		if (!dir.endsWith(File.separator)) dir += File.separator;
 
