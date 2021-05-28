@@ -124,10 +124,17 @@ public class Main
 		network = null;
 		if (useGraph)
 		{
-			for (String name : networkFilename)
+			if (networkFilename == null || networkFilename.isEmpty())
 			{
-				if (network == null) network = new Network(name);
-				else network.addResource(name);
+				network = new Network();
+			}
+			else
+			{
+				for (String name : networkFilename)
+				{
+					if (network == null) network = new Network(name);
+					else network.addResource(name);
+				}
 			}
 		}
 
@@ -141,7 +148,7 @@ public class Main
 				System.out.println("howMany = " + howMany);
 			}
 
-			generateRamdomRun(howMany);
+			generateRandomRun(howMany);
 		}
 		else
 		{
@@ -171,7 +178,6 @@ public class Main
 		minAltCntThr = null;
 		geneLimit = null;
 		geneRankingFile = null;
-		network = null;
 	}
 
 	/**
@@ -179,7 +185,7 @@ public class Main
 	 * @param howMany number of iterations for this run
 	 * @throws IOException
 	 */
-	public static void generateRamdomRun(int howMany) throws IOException
+	public static void generateRandomRun(int howMany) throws IOException
 	{
 		// load the alteration data
 		Map<String, GeneAlt> genesMap = loadAlterations();
@@ -332,7 +338,7 @@ public class Main
 		writeRankedGroups(groupsOfSeeds, null, "ranked-groups-random.txt");
 	}
 
-		private static List<String> getGenes(List<Group> groups,
+	private static List<String> getGenes(List<Group> groups,
 		final Map<String, GeneAlt> genesMap)
 	{
 		Set<String> genes = new HashSet<>();
@@ -342,8 +348,7 @@ public class Main
 		}
 		List<String> list = new ArrayList<>(genes);
 
-		Collections.sort(list,
-			(o1, o2) -> new Integer(genesMap.get(o2).getAltCnt()).compareTo(genesMap.get(o1).getAltCnt()));
+		list.sort((o1, o2) -> Integer.compare(genesMap.get(o2).getAltCnt(), genesMap.get(o1).getAltCnt()));
 
 		return list;
 	}
@@ -355,7 +360,7 @@ public class Main
 		{
 			if (resultScores.get(s) <= thr) list.add(s);
 		}
-		Collections.sort(list, (o1, o2) -> resultScores.get(o1).compareTo(resultScores.get(o2)));
+		list.sort(Comparator.comparing(resultScores::get));
 		return list;
 	}
 
@@ -769,7 +774,7 @@ public class Main
 			}
 			else if (token[0].equals("network-file"))
 			{
-				if (networkFilename == null) networkFilename = new HashSet<String>();
+				if (networkFilename == null) networkFilename = new HashSet<>();
 				networkFilename.add(dir + token[1]);
 			}
 			else if (token[0].equals("randomize-data-matrix"))
