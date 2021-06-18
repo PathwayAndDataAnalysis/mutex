@@ -307,6 +307,9 @@ public class GeneAlt implements Cloneable, Serializable
 
 	public void unshuffleSticky()
 	{
+		if (randScoresSave == null) throw new RuntimeException("The method unshuffleSticky cannot be called when " +
+			"there is no previous shuffleSticky call exists. Please call shuffleSticky before calling this method.");
+
 		shuf = null;
 		ch = null;
 		typeAlts = null;

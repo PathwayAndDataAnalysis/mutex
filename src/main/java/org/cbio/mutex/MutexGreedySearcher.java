@@ -146,7 +146,13 @@ public class MutexGreedySearcher implements Serializable
 			map.put(seed, groups.get(seed).calcFinalScore());
 		}
 
-		for (GeneAlt gene : genes.values()) gene.unshuffleSticky();
+		for (GeneAlt gene : genes.values())
+		{
+			if (noShuffle == null || !noShuffle.contains(gene.getId()))
+			{
+				gene.unshuffleSticky();
+			}
+		}
 
 		for (String s : map.keySet())
 		{
