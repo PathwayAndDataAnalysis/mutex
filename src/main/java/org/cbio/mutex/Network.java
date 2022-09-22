@@ -42,7 +42,7 @@ public class Network extends DirectedGraph
 
 		if (filename == null)
 		{
-			graphTR.merge(PathwayCommons.get().getGraph(SIFEnum.CONTROLS_EXPRESSION_OF));
+			graphTR.merge((DirectedGraph) PathwayCommons.get().getGraph(SIFEnum.CONTROLS_EXPRESSION_OF));
 //			graphTR.merge(SPIKE.getGraphTR());
 //			graphTR.merge(SignaLink.getGraphTR());
 		}
@@ -58,7 +58,7 @@ public class Network extends DirectedGraph
 		DirectedGraph graphSig = new DirectedGraph("signaling", SIFEnum.CONTROLS_STATE_CHANGE_OF.getTag());
 		if (filename == null)
 		{
-			graphSig.merge(PathwayCommons.get().getGraph(SIFEnum.CONTROLS_STATE_CHANGE_OF));
+			graphSig.merge((DirectedGraph) PathwayCommons.get().getGraph(SIFEnum.CONTROLS_STATE_CHANGE_OF));
 //			graphSig.merge(SPIKE.getGraphPostTl());
 //			graphSig.merge(SignaLink.getGraphPostTl());
 		}

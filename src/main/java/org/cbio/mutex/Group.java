@@ -4,6 +4,7 @@ import org.panda.utility.ArrayUtil;
 import org.panda.utility.FormatUtil;
 import org.panda.utility.graph.DirectedGraph;
 import org.panda.utility.graph.Graph;
+import org.panda.utility.statistics.FishersExactTest;
 import org.panda.utility.statistics.Overlap;
 
 import java.io.*;
@@ -87,7 +88,8 @@ public class Group implements Serializable
 					int a1 = member.getAltCnt();
 					int a2 = mergeCnt - a1 + ov;
 
-					double pval = Overlap.calcMutexPval(merge.length, ov, a1, a2);
+//					double pval = Overlap.calcMutexPval(merge.length, ov, a1, a2);
+					double pval = FishersExactTest.calcDeficiencyPval(merge.length, a1, a2, ov);
 					pvals.put(member.getId(), pval);
 				}
 			}
@@ -103,11 +105,13 @@ public class Group implements Serializable
 				int a1 = member.getAltCnt();
 				int a2 = a2_pre - a1 + ov;
 
-				double pval = Overlap.calcMutexPval(merge.length, ov, a1, a2);
+//				double pval = Overlap.calcMutexPval(merge.length, ov, a1, a2);
+				double pval = FishersExactTest.calcDeficiencyPval(merge.length, a1, a2, ov);
 				pvals.put(member.getId(), pval);
 			}
 
-			pvals.put(candidate.getId(), Overlap.calcMutexPval(cch, merge));
+//			pvals.put(candidate.getId(), Overlap.calcMutexPval(cch, merge));
+			pvals.put(candidate.getId(), FishersExactTest.calcDeficiencyPval(cch, merge));
 		}
 
 		return pvals;
